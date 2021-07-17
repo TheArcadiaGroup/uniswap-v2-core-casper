@@ -9,6 +9,9 @@ edition = "2018"
 [dependencies]
 contract = { package = "casper-contract", version="1.2" }
 types = { package = "casper-types", version="1.2" }
+integer-sqrt = "0.1.5"
+solid = "0.1.5"
+ethereum-types = "0.5.2"
 
 [[bin]]
 name = "contract"
@@ -19,3 +22,7 @@ test = false
 
 [features]
 default = ["contract/std", "types/std"]
+
+# enable overflow checks to make it behave like we used SafeMath in solidity
+[profile.release]
+overflow-checks = true
