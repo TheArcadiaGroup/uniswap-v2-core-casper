@@ -2,9 +2,14 @@
 // range: [0, 2**112 - 1]
 // resolution: 1 / 2**112
 
-use solid::int::{self, Uint112, Uint224};
+use std::{convert::TryFrom};
 
-const Q112: Uint224 = 2**112;
+//use ethabi::ethereum_types::U256;
+use primitive_types::U256;
+use solid::int::{self, Uint112, Uint224};
+use types::bytesrepr::ToBytes;
+
+const Q112: Uint224 = U256::from(2 << 112) as Uint224;
 
 // encode a uint112 as a UQ112x112
 fn encode(y: Uint112) -> Uint224 {

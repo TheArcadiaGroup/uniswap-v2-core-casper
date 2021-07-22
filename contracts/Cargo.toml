@@ -18,6 +18,10 @@ parity-hash = "1.2.2"
 evm = "0.28.0"
 sha3 = "0.9.1"
 ethabi = "14.1.0"
+typenum = "1.13.0"
+primitive-types = "0.6.1"
+ethereum_abi = "0.3.0"
+keccak-hash = "0.8.0"
 #casper-contract = "1.2.1"
 
 [[bin]]
