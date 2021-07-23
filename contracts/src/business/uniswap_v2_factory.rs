@@ -1,4 +1,4 @@
-#![no_main]
+
 #![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(non_snake_case)]
@@ -10,26 +10,38 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
 };
+use core::convert::TryInto;
+use create2;
 use ethereum_abi::Abi;
 use parity_hash::H256;
-use solid::{Address, bytesfix::Bytes32};
-use core::convert::TryInto;
+use solid::{bytesfix::Bytes32, Address};
 use std::ops::Add;
-use create2;
 // for contract creation code
 use ethcontract_generate::ContractBuilder;
 // contains evm opcodes like load, add..
 use evm::Opcode;
-//use sha3::Keccak256;
-use keccak_hash::keccak256;
+//use keccak_hash::keccak256;
+use web3::signing::keccak256;
 // I couldn't find encodePacked which is utilized in Solidity
 // the difference is that encode makes calls to contracts and params are padded to 32 bytes
 // encodePacked is more space-efficient and doesn't call contracts
-use ethabi::{encode, ethereum_types::H160};
 use ethabi::Token;
+use ethabi::{encode, ethereum_types::H160};
 
-use contract::{contract_api::{runtime::{self, get_named_arg}, storage}, unwrap_or_revert::UnwrapOrRevert};
-use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
+use contract::{
+    contract_api::{
+        runtime::{self, get_named_arg},
+        storage,
+    },
+    unwrap_or_revert::UnwrapOrRevert,
+};
+use types::{
+    account::AccountHash,
+    bytesrepr::{FromBytes, ToBytes},
+    contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
+    runtime_args, ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs,
+    URef, U256,
+};
 
 #[repr(u16)]
 pub enum Error {
@@ -76,7 +88,11 @@ extern "C" fn createPair() {
     if (tokenA == tokenB) {
         runtime::revert(Error::UniswapV2IdenticalAddresses);
     }
-    let (mut token0, mut token1) = if tokenA < tokenB {(tokenA, tokenB)} else {(tokenB, tokenA)};
+    let (token0, token1) = if tokenA < tokenB {
+        (tokenA, tokenB)
+    } else {
+        (tokenB, tokenA)
+    };
     // in before 0 address was 0x0
     if (token0.to_string() == H256::zero().to_string()) {
         runtime::revert(Error::UniswapV2ZeroAddress);
@@ -87,32 +103,42 @@ extern "C" fn createPair() {
     // calling smart contracts
     // runtime::call_contract(contract_hash, entry_point_name, runtime_args)
     // generate salt
-    let salt: String = keccak256(&mut encode(&[token0, token1]));
+    let mut tok0_address = [0u8; 20];
+    tok0_address.copy_from_slice(&token0.as_bytes());
+    let mut tok1_address = [0u8; 20];
+    tok1_address.copy_from_slice(&token1.as_bytes());
+    let salt: Bytes32 = Bytes32(keccak256(&mut encode(&[Token::Array(vec![
+        Token::Address(tok0_address.into()),
+        Token::Address(tok1_address.into()),
+    ])])));
     //create2::calc_addr(address, salt, init_code)
     // generate pair address
     // ContractBuilder::generate(self, contract)
 }
 
 #[no_mangle]
-pub extern "C" fn call() {
+pub extern "C" fn new() {
     let feeTo: AccountHash = runtime::get_named_arg("feeTo");
     let feeToSetter: AccountHash = runtime::get_named_arg("feeToSetter");
     let allPairs: Vec<ContractHash> = runtime::get_named_arg("allPairs");
 
     let mut named_keys = NamedKeys::new();
     named_keys.insert("feeTo".to_string(), storage::new_uref(feeTo).into());
-    named_keys.insert("feeToSetter".to_string(), storage::new_uref(feeToSetter).into());
+    named_keys.insert(
+        "feeToSetter".to_string(),
+        storage::new_uref(feeToSetter).into(),
+    );
     named_keys.insert("allPairs".to_string(), storage::new_uref(allPairs).into());
 
     let mut entry_points = EntryPoints::new();
     entry_points.add_entry_point(endpoint("feeTo", vec![], AccountHash::cl_type()));
     entry_points.add_entry_point(endpoint("feeToSetter", vec![], AccountHash::cl_type()));
-    entry_points.add_entry_point(endpoint("allPairs", vec![], CLType::List(Box::new(ContractHash::cl_type()))));
     entry_points.add_entry_point(endpoint(
-        "allPairsLength",
+        "allPairs",
         vec![],
-        CLType::U256,
+        CLType::List(Box::new(ContractHash::cl_type())),
     ));
+    entry_points.add_entry_point(endpoint("allPairsLength", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint(
         "setFeeTo",
         vec![Parameter::new("feeTo", AccountHash::cl_type())],
@@ -132,12 +158,8 @@ pub extern "C" fn call() {
         ContractHash::cl_type(),
     ));
 
-    let (contract_hash, _) = storage::new_locked_contract(
-        entry_points,
-         Some(named_keys), 
-         None, 
-         None
-    );
+    let (contract_hash, _) =
+        storage::new_locked_contract(entry_points, Some(named_keys), None, None);
     runtime::put_key("Factory", contract_hash.into());
     runtime::put_key("Factory_hash", storage::new_uref(contract_hash).into());
 }

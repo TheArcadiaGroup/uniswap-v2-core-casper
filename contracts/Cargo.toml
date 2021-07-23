@@ -22,6 +22,9 @@ typenum = "1.13.0"
 primitive-types = "0.6.1"
 ethereum_abi = "0.3.0"
 keccak-hash = "0.8.0"
+web3 = "0.14.0"
+numext-fixed-uint = "0.1.6"
+num = "0.2.0"
 #casper-contract = "1.2.1"
 
 [[bin]]

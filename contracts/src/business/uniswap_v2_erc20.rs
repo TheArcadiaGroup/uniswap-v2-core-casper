@@ -1,4 +1,4 @@
-#![no_main]
+
 #![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(non_snake_case)]
