@@ -1,4 +1,3 @@
-
 #![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(non_snake_case)]
@@ -222,4 +221,8 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
         EntryPointAccess::Public,
         EntryPointType::Contract,
     )
+}
+
+fn main() {
+    println!("Hello, ERC20!");
 }

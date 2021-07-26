@@ -1,10 +1,8 @@
-
 #![allow(unused_imports)]
 #![allow(unused_parens)]
 #![allow(non_snake_case)]
 
 extern crate alloc;
-extern crate parity_hash;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -14,7 +12,7 @@ use core::convert::TryInto;
 use create2;
 use ethereum_abi::Abi;
 use parity_hash::H256;
-use solid::{bytesfix::Bytes32, Address};
+use solid::{Address, bytesfix::Bytes32, int::Uint112};
 use std::ops::Add;
 // for contract creation code
 use ethcontract_generate::ContractBuilder;
@@ -28,20 +26,8 @@ use web3::signing::keccak256;
 use ethabi::Token;
 use ethabi::{encode, ethereum_types::H160};
 
-use contract::{
-    contract_api::{
-        runtime::{self, get_named_arg},
-        storage,
-    },
-    unwrap_or_revert::UnwrapOrRevert,
-};
-use types::{
-    account::AccountHash,
-    bytesrepr::{FromBytes, ToBytes},
-    contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
-    runtime_args, ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs,
-    URef, U256,
-};
+use contract::{contract_api::{runtime::{self, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
+use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
 
 #[repr(u16)]
 pub enum Error {
@@ -111,24 +97,161 @@ extern "C" fn createPair() {
         Token::Address(tok0_address.into()),
         Token::Address(tok1_address.into()),
     ])])));
-    //create2::calc_addr(address, salt, init_code)
-    // generate pair address
-    // ContractBuilder::generate(self, contract)
+    // Pair contract creation
+    // 1 - set up named keys
+    let mut named_keys = NamedKeys::new();
+    named_keys.insert(
+        "factory".to_string(), 
+        storage::new_uref(runtime::get_key("Factory")).into()
+    );
+    named_keys.insert(
+        "token0".to_string(),
+        storage::new_uref(token0).into(),
+    );
+    named_keys.insert(
+        "token1".to_string(), 
+        storage::new_uref(token1).into()
+    );
+    named_keys.insert(
+        "reserve0".to_string(), 
+        storage::new_uref([0u8; 14]).into()
+    );
+    named_keys.insert(
+        "reserve1".to_string(), 
+        storage::new_uref([0u8; 14]).into()
+    );
+    named_keys.insert(
+        "blockTimestampLast".to_string(), 
+        storage::new_uref(u32::MIN).into()
+    );
+    named_keys.insert(
+        "price0CumulativeLast".to_string(), 
+        storage::new_uref(U256::from(0)).into()
+    );
+    named_keys.insert(
+        "price1CumulativeLast".to_string(), 
+        storage::new_uref(U256::from(0)).into()
+    );
+    named_keys.insert(
+        "kLast".to_string(), 
+        storage::new_uref(U256::from(0)).into()
+    );
+    named_keys.insert(
+        "unlocked".to_string(), 
+        storage::new_uref(U256::from(1)).into()
+    );
+    // 2 - set up entry points
+    let mut entry_points = EntryPoints::new();
+    entry_points.add_entry_point(endpoint("factory", vec![], AccountHash::cl_type()));
+    entry_points.add_entry_point(endpoint("token0", vec![], AccountHash::cl_type()));
+    entry_points.add_entry_point(endpoint("token1", vec![], AccountHash::cl_type()));
+    entry_points.add_entry_point(endpoint("reserve0", vec![], CLType::U128));
+    entry_points.add_entry_point(endpoint("reserve1", vec![], CLType::U128));
+    entry_points.add_entry_point(endpoint("blockTimestampLast", vec![], CLType::U32));
+    entry_points.add_entry_point(endpoint("price0CumulativeLast", vec![], CLType::U256));
+    entry_points.add_entry_point(endpoint("price1CumulativeLast", vec![], CLType::U256));
+    entry_points.add_entry_point(endpoint("kLast", vec![], CLType::U256));
+    entry_points.add_entry_point(endpoint("unlocked", vec![], CLType::U256));
+    entry_points.add_entry_point(endpoint(
+        "getReserves",
+        vec![],
+        CLType::Tuple3([Box::new(CLType::U128), Box::new(CLType::U128), Box::new(CLType::U32)]),
+    ));
+    entry_points.add_entry_point(endpoint(
+        "_safeTransfer",
+        vec![
+            Parameter::new("token", ContractHash::cl_type()),
+            Parameter::new("to", AccountHash::cl_type()),
+            Parameter::new("value", CLType::U256)
+        ],
+        CLType::Unit,
+    ));
+    entry_points.add_entry_point(endpoint(
+        "_update",
+        vec![
+            Parameter::new("balance0", CLType::U256),
+            Parameter::new("balance1", CLType::U256),
+            Parameter::new("_reserve0", CLType::U128),
+            Parameter::new("_reserve1", CLType::U128)
+        ],
+        CLType::Unit,
+    ));
+    entry_points.add_entry_point(endpoint(
+        "_mintFee",
+        vec![
+            Parameter::new("_reserve0", CLType::U128),
+            Parameter::new("_reserve1", CLType::U128)
+        ],
+        CLType::Bool,
+    ));
+    entry_points.add_entry_point(endpoint(
+        "mint",
+        vec![
+            Parameter::new("to", AccountHash::cl_type())
+        ],
+        CLType::U256,
+    ));
+    entry_points.add_entry_point(endpoint(
+        "burn",
+        vec![
+            Parameter::new("to", AccountHash::cl_type())
+        ],
+        CLType::Tuple2([Box::new(CLType::U256), Box::new(CLType::U256)]),
+    ));
+    entry_points.add_entry_point(endpoint(
+        "swap",
+        vec![
+            Parameter::new("amount0Out", CLType::U256),
+            Parameter::new("amount1Out", CLType::U256),
+            Parameter::new("to", AccountHash::cl_type()),
+            Parameter::new("data", Bytes::cl_type())
+        ],
+        CLType::Unit,
+    ));
+    entry_points.add_entry_point(endpoint(
+        "skim",
+        vec![
+            Parameter::new("to", AccountHash::cl_type())
+        ],
+        CLType::Unit,
+    ));
+    entry_points.add_entry_point(endpoint(
+        "sync",
+        vec![],
+        CLType::Unit,
+    ));
+    // 3 - create the contract
+    let (contract_hash, _) =
+        storage::new_contract(entry_points, Some(named_keys), None, None);
+    runtime::put_key("Pair", contract_hash.into());
+    runtime::put_key("Pair_hash", storage::new_uref(contract_hash).into());
+    // handling the pair creation by updating the storage
+    set_key(&pair_key(&token0, &token1), contract_hash);
+    set_key(&pair_key(&token1, &token0), contract_hash);
+    let mut pairs: Vec<ContractHash> = get_key("allPairs");
+    pairs.push(contract_hash);
+    set_key("allPairs", pairs);
 }
 
 #[no_mangle]
-pub extern "C" fn new() {
+pub extern "C" fn call() {
     let feeTo: AccountHash = runtime::get_named_arg("feeTo");
     let feeToSetter: AccountHash = runtime::get_named_arg("feeToSetter");
     let allPairs: Vec<ContractHash> = runtime::get_named_arg("allPairs");
 
     let mut named_keys = NamedKeys::new();
-    named_keys.insert("feeTo".to_string(), storage::new_uref(feeTo).into());
+    named_keys.insert(
+        "feeTo".to_string(), 
+        storage::new_uref(feeTo).into()
+    );
     named_keys.insert(
         "feeToSetter".to_string(),
         storage::new_uref(feeToSetter).into(),
     );
-    named_keys.insert("allPairs".to_string(), storage::new_uref(allPairs).into());
+    named_keys.insert(
+        "allPairs".to_string(), 
+        storage::new_uref(allPairs).into()
+    );
 
     let mut entry_points = EntryPoints::new();
     entry_points.add_entry_point(endpoint("feeTo", vec![], AccountHash::cl_type()));
@@ -203,4 +326,8 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
         EntryPointAccess::Public,
         EntryPointType::Contract,
     )
+}
+
+fn main() {
+    println!("Hello, Factory!");
 }

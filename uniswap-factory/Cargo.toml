@@ -1,6 +1,5 @@
 [package]
-name = "contracts"
-description = "Uniswap v2 contracts written in Rust"
+name = "uniswap-factory"
 version = "0.1.0"
 edition = "2018"
 
@@ -9,26 +8,18 @@ edition = "2018"
 [dependencies]
 contract = { package = "casper-contract", version="1.2" }
 types = { package = "casper-types", version="1.2" }
-integer-sqrt = "0.1.5"
 solid = "0.1.5"
-ethereum-types = "0.5.2"
 create2 = "0.0.2"
 ethcontract-generate = "0.13.1"
 parity-hash = "1.2.2"
 evm = "0.28.0"
-sha3 = "0.9.1"
 ethabi = "14.1.0"
-typenum = "1.13.0"
 primitive-types = "0.6.1"
 ethereum_abi = "0.3.0"
-keccak-hash = "0.8.0"
 web3 = "0.14.0"
-numext-fixed-uint = "0.1.6"
-num = "0.2.0"
-#casper-contract = "1.2.1"
 
 [[bin]]
-name = "contract"
+name = "uniswap-factory"
 path = "src/main.rs"
 bench = false
 doctest = false

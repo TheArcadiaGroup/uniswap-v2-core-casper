@@ -6,8 +6,6 @@
 #![allow(overflowing_literals)]
 
 use std::{convert:: TryInto, ops::{Div, Mul}};
-//use ethabi::ethereum_types::U256;
-//use primitive_types::U256;
 use solid::{encode::Encode, int::Uint112};
 
 // Uint224 is not a primitive type, so we need to define it here
@@ -17,13 +15,13 @@ pub struct Uint224(pub [u8; 28]);
 impl Mul for Uint224 {
     type Output = Uint224;
     fn mul(self, rhs: Uint224) -> Uint224 {
-        return self * rhs;
+        return self.mul(rhs);
     }
 }
 impl Div for Uint224 {
     type Output = Uint224;
     fn div(self, rhs: Uint224) -> Uint224 {
-        return self / rhs;
+        return self.div(rhs);
     }
 }
 

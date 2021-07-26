@@ -1,0 +1,24 @@
+[package]
+name = "uniswap-erc20"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+contract = { package = "casper-contract", version="1.2" }
+types = { package = "casper-types", version="1.2" }
+
+[[bin]]
+name = "uniswap-erc20"
+path = "src/main.rs"
+bench = false
+doctest = false
+test = false
+
+[features]
+default = ["contract/std", "types/std"]
+
+# enable overflow checks to make it behave like we used SafeMath in solidity
+[profile.release]
+overflow-checks = true
