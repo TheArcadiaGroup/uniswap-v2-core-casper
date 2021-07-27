@@ -9,8 +9,7 @@ use alloc::{
     string::String,
 };
 use core::convert::TryInto;
-use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
-use web3::signing::keccak256;
+
 use contract::{
     contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
@@ -48,8 +47,8 @@ pub extern "C" fn total_supply() {
 
 #[no_mangle]
 pub extern "C" fn balance_of() {
-    let owner: AccountHash = runtime::get_named_arg("owner");
-    let val: U256 = get_key(&balance_key(&owner));
+    let account: AccountHash = runtime::get_named_arg("account");
+    let val: U256 = get_key(&balance_key(&account));
     ret(val)
 }
 
@@ -58,25 +57,6 @@ pub extern "C" fn allowance() {
     let owner: AccountHash = runtime::get_named_arg("owner");
     let spender: AccountHash = runtime::get_named_arg("spender");
     let val: U256 = get_key(&allowance_key(&owner, &spender));
-    ret(val)
-}
-
-#[no_mangle]
-pub extern "C" fn domain_separator() {
-    let val: [u8; 32] = get_key("domain_separator");
-    ret(val)
-}
-
-#[no_mangle]
-pub extern "C" fn permit_typehash() {
-    let val: [u8; 32] = get_key("permit_typehash");
-    ret(val)
-}
-
-#[no_mangle]
-pub extern "C" fn nonces() {
-    let owner: AccountHash = runtime::get_named_arg("owner");
-    let val: U256 = get_key(&nonce_key(&owner));
     ret(val)
 }
 
@@ -104,18 +84,16 @@ pub extern "C" fn transfer_from() {
 
 #[no_mangle]
 pub extern "C" fn call() {
-    let token_name: String = "Uniswap V2".to_string();
-    let token_symbol: String = "UNI-V2".to_string();
-    let token_decimals: u8 = 18;
+    let token_name: String = runtime::get_named_arg("token_name");
+    let token_symbol: String = runtime::get_named_arg("token_symbol");
+    let token_decimals: u8 = runtime::get_named_arg("token_decimals");
     let token_total_supply: U256 = runtime::get_named_arg("token_total_supply");
-    let permit_typehash: Bytes32 = Bytes32(keccak256(b"Permit(AccountHash owner,AccountHash spender,U256 value,U256 nonce,U256 deadline)"));
 
     let mut entry_points = EntryPoints::new();
     entry_points.add_entry_point(endpoint("name", vec![], CLType::String));
     entry_points.add_entry_point(endpoint("symbol", vec![], CLType::String));
     entry_points.add_entry_point(endpoint("decimals", vec![], CLType::U8));
     entry_points.add_entry_point(endpoint("total_supply", vec![], CLType::U32));
-    entry_points.add_entry_point(endpoint("permit_typehash", vec![], CLType::Any));
     entry_points.add_entry_point(endpoint(
         "transfer",
         vec![
@@ -170,15 +148,11 @@ pub extern "C" fn call() {
         balance_key(&runtime::get_caller()),
         storage::new_uref(token_total_supply).into(),
     );
-    named_keys.insert(
-        nonce_key(&runtime::get_caller()),
-        storage::new_uref(0).into(),
-    );
 
     let (contract_hash, _) =
         storage::new_locked_contract(entry_points, Some(named_keys), None, None);
-    runtime::put_key("UNI-V2", contract_hash.into());
-    runtime::put_key("UNI_V2_hash", storage::new_uref(contract_hash).into());
+    runtime::put_key("ERC20", contract_hash.into());
+    runtime::put_key("ERC20_hash", storage::new_uref(contract_hash).into());
 }
 
 fn _transfer(sender: AccountHash, recipient: AccountHash, amount: U256) {
@@ -239,10 +213,6 @@ fn allowance_key(owner: &AccountHash, sender: &AccountHash) -> String {
     format!("allowances_{}_{}", owner, sender)
 }
 
-fn nonce_key(account: &AccountHash) -> String {
-    format!("nonces_{}", account)
-}
-
 fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
     EntryPoint::new(
         String::from(name),
@@ -254,5 +224,5 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
 }
 
 fn main() {
-    println!("Hello, UNI_ERC20!");
+    println!("Hello, ERC20!");
 }

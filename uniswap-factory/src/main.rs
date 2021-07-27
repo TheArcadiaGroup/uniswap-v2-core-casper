@@ -12,13 +12,12 @@ use core::convert::TryInto;
 use create2;
 use ethereum_abi::Abi;
 use parity_hash::H256;
-use solid::{Address, bytesfix::Bytes32, int::Uint112};
-use std::ops::Add;
+use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
+use std::{convert::TryFrom, ops::Add};
 // for contract creation code
 use ethcontract_generate::ContractBuilder;
 // contains evm opcodes like load, add..
 use evm::Opcode;
-//use keccak_hash::keccak256;
 use web3::signing::keccak256;
 // I couldn't find encodePacked which is utilized in Solidity
 // the difference is that encode makes calls to contracts and params are padded to 32 bytes
@@ -101,6 +100,14 @@ extern "C" fn createPair() {
     // 1 - set up named keys
     let mut named_keys = NamedKeys::new();
     named_keys.insert(
+        "minimum_liquidity".to_string(), 
+        storage::new_uref(U256::from(1000)).into()
+    );
+    named_keys.insert(
+        "selector".to_string(), 
+        storage::new_uref(*pop(&keccak256("transfer(AccountHash, U256)".as_bytes())[..])).into()
+    );
+    named_keys.insert(
         "factory".to_string(), 
         storage::new_uref(runtime::get_key("Factory")).into()
     );
@@ -142,6 +149,8 @@ extern "C" fn createPair() {
     );
     // 2 - set up entry points
     let mut entry_points = EntryPoints::new();
+    entry_points.add_entry_point(endpoint("minimum_liquidity", vec![], CLType::U256));
+    entry_points.add_entry_point(endpoint("selector", vec![], CLType::Any));
     entry_points.add_entry_point(endpoint("factory", vec![], AccountHash::cl_type()));
     entry_points.add_entry_point(endpoint("token0", vec![], AccountHash::cl_type()));
     entry_points.add_entry_point(endpoint("token1", vec![], AccountHash::cl_type()));
@@ -156,33 +165,6 @@ extern "C" fn createPair() {
         "getReserves",
         vec![],
         CLType::Tuple3([Box::new(CLType::U128), Box::new(CLType::U128), Box::new(CLType::U32)]),
-    ));
-    entry_points.add_entry_point(endpoint(
-        "_safeTransfer",
-        vec![
-            Parameter::new("token", ContractHash::cl_type()),
-            Parameter::new("to", AccountHash::cl_type()),
-            Parameter::new("value", CLType::U256)
-        ],
-        CLType::Unit,
-    ));
-    entry_points.add_entry_point(endpoint(
-        "_update",
-        vec![
-            Parameter::new("balance0", CLType::U256),
-            Parameter::new("balance1", CLType::U256),
-            Parameter::new("_reserve0", CLType::U128),
-            Parameter::new("_reserve1", CLType::U128)
-        ],
-        CLType::Unit,
-    ));
-    entry_points.add_entry_point(endpoint(
-        "_mintFee",
-        vec![
-            Parameter::new("_reserve0", CLType::U128),
-            Parameter::new("_reserve1", CLType::U128)
-        ],
-        CLType::Bool,
     ));
     entry_points.add_entry_point(endpoint(
         "mint",
@@ -326,6 +308,11 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
         EntryPointAccess::Public,
         EntryPointType::Contract,
     )
+}
+
+// converts &[u8] => &[u8; 4]
+fn pop(barry: &[u8]) -> &[u8; 4] {
+    barry.try_into().expect("slice with incorrect length")
 }
 
 fn main() {

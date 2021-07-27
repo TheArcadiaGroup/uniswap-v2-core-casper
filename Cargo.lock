@@ -545,6 +545,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68b91989ae21441195d7d9b9993a2f9295c7e1a8c96255d8b729accddc124797"
 
 [[package]]
+name = "erc20"
+version = "0.1.0"
+dependencies = [
+ "casper-contract",
+ "casper-types",
+]
+
+[[package]]
 name = "ethabi"
 version = "12.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2735,6 +2743,8 @@ version = "0.1.0"
 dependencies = [
  "casper-contract",
  "casper-types",
+ "solid",
+ "web3 0.14.0",
 ]
 
 [[package]]
@@ -2766,7 +2776,10 @@ dependencies = [
 name = "uniswap-pair"
 version = "0.1.0"
 dependencies = [
+ "casper-contract",
  "casper-types",
+ "ethabi 14.1.0",
+ "parity-hash",
  "solid",
 ]
 

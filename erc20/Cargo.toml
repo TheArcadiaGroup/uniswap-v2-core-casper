@@ -1,5 +1,5 @@
 [package]
-name = "uniswap-erc20"
+name = "erc20"
 version = "0.1.0"
 edition = "2018"
 
@@ -8,11 +8,9 @@ edition = "2018"
 [dependencies]
 contract = { package = "casper-contract", version="1.2" }
 types = { package = "casper-types", version="1.2" }
-solid = "0.1.5"
-web3 = "0.14.0"
 
 [[bin]]
-name = "uniswap-erc20"
+name = "erc20"
 path = "src/main.rs"
 bench = false
 doctest = false
