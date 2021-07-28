@@ -10,15 +10,16 @@ use alloc::{
 };
 use core::convert::TryInto;
 use parity_hash::H256;
-use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
+use solid::{Address, bytesfix::{Bytes32, Bytes4}, encode::Encode, int::{Uint112, Uint224}};
 use std::{convert::TryFrom, ops::Add};
 // I couldn't find encodePacked which is utilized in Solidity
 // the difference is that encode makes calls to contracts and params are padded to 32 bytes
 // encodePacked is more space-efficient and doesn't call contracts
 use ethabi::{encode, ethereum_types::U128};
 
-use contract::{contract_api::{runtime::{self, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
-use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
+use contract::{contract_api::{runtime::{self, get_blocktime, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
+use types::{ApiError, BlockTime, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
+pub use uniswap_libs;
 
 #[repr(u16)]
 pub enum Error {
@@ -26,6 +27,7 @@ pub enum Error {
     UniswapV2PairExists = 1,
     UniswapV2Forbidden = 2, // 65538
     UniswapV2IdenticalAddresses = 3,
+    UniswapV2Overflow = 4
 }
 
 impl From<Error> for ApiError {
@@ -63,6 +65,35 @@ extern "C" fn getReserves() {
     ret(result)
 }
 
+fn _safeTransfer(token: ContractHash, to: AccountHash, value: U256) {
+    // 1 - prepare runtime args for the transfer function
+    let mut transfer_args: RuntimeArgs = RuntimeArgs::new();
+    transfer_args.insert("recipient", to).expect("Couldn't insert the recipient argument @_safeTransfer");
+    transfer_args.insert("amount", value).expect("Couldn't insert the amount argument @_safeTransfer");
+    // 2 - call the token's contract transfer function
+    runtime::call_contract::<()>(token, "transfer", transfer_args);
+    // In Solidity, we catch a revert here, but in our case the revert will be thrown
+    // from within the contract call
+}
+
+fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint112) {
+    if (balance0 > U256::from(2i32.pow(112) - 1) || balance1 > U256::from(2i32.pow(112) - 1)) {
+        runtime::revert(Error::UniswapV2Overflow);
+    }
+    // assign a value to blockTimestamp just to avoid the error "use of possibly-uninitialized variable"
+    let mut blockTimestamp = u32::MAX;
+    // Here, we are sure that checked_rem() will result in Some() and not None
+    match u64::from(get_blocktime()).checked_rem(2i32.pow(32) as u64) {
+        Some(res) => blockTimestamp = res as u32,
+        None => println!("Cannot divide by zero @pair::_update")
+    }
+    let timeElapsed: u32 = blockTimestamp - get_key::<u32>("blockTimestampLast");
+    if (timeElapsed > u32::MIN && u128::from_be_bytes(*pop(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(*pop(&(_reserve1.encode())[..])) != u128::MIN) {
+        let mut price0CumulativeLast: U256 = get_key::<U256>("price0CumulativeLast");
+        //let x: Uint224 = uniswap_libs::uq112x112::encode(_reserve0);
+    }
+}
+
 fn ret<T: CLTyped + ToBytes>(value: T) {
     runtime::ret(CLValue::from_t(value).unwrap_or_revert())
 }
@@ -88,6 +119,10 @@ fn set_key<T: ToBytes + CLTyped>(name: &str, value: T) {
             runtime::put_key(name, key);
         }
     }
+}
+
+fn pop(barry: &[u8]) -> &[u8; 16] {
+    barry.try_into().expect("slice with incorrect length")
 }
 fn main() {
     println!("Hello, Pair!");

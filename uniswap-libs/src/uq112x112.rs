@@ -45,11 +45,11 @@ fn pop(barry: &[u8]) -> &[u8; 28] {
 }
 
 // encode a uint112 as a UQ112x112
-fn encode(y: Uint112) -> Uint224 {
+pub fn encode(y: Uint112) -> Uint224 {
     return Uint224(*pop(&(y.encode())[..])).mul(get_q112());
 }
 
 // divide a UQ112x112 by a uint112, returning a UQ112x112
-fn uqdiv(x: Uint224, y: Uint112) -> Uint224 {
+pub fn uqdiv(x: Uint224, y: Uint112) -> Uint224 {
     return x.div(Uint224(*pop(&(y.encode())[..])));
 }

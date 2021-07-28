@@ -2781,6 +2781,7 @@ dependencies = [
  "ethabi 14.1.0",
  "parity-hash",
  "solid",
+ "uniswap-libs",
 ]
 
 [[package]]
