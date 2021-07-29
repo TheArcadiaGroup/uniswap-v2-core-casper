@@ -7,6 +7,7 @@
 
 use std::{convert:: TryInto, ops::{Div, Mul}};
 use solid::{encode::Encode, int::Uint112};
+use types::U256;
 
 // Uint224 is not a primitive type, so we need to define it here
 // which enables us to implement the Mul and Div traits to access their functions
@@ -24,6 +25,16 @@ impl Div for Uint224 {
         return self.div(rhs);
     }
 }
+impl Encode for Uint224 {
+    fn encode(&self) -> Vec<u8> {
+        return self.encode();
+    }
+}
+impl Clone for Uint224 {
+    fn clone(&self) -> Self {
+        return self.clone();
+    }
+}
 
 // **** Uint112 => Uint224 steps: *****
 // 1 - convert Uint112 => Vec[u8] with encode()
@@ -36,7 +47,7 @@ impl Div for Uint224 {
 //const Q112: Uint224 = Uint224(*pop(&((2 << 112 as u32).encode())[..]));
 
 fn get_q112() -> Uint224 {
-    return Uint224(*pop(&((2 << 112 as u32).encode())[..]));
+    return Uint224(*pop(&((2i32.pow(112)).encode())[..]));
 }
 
 // converts &[u8] => &[u8; 28]
@@ -45,11 +56,11 @@ fn pop(barry: &[u8]) -> &[u8; 28] {
 }
 
 // encode a uint112 as a UQ112x112
-pub fn encode(y: Uint112) -> Uint224 {
+pub fn encode(y: &Uint112) -> Uint224 {
     return Uint224(*pop(&(y.encode())[..])).mul(get_q112());
 }
 
 // divide a UQ112x112 by a uint112, returning a UQ112x112
-pub fn uqdiv(x: Uint224, y: Uint112) -> Uint224 {
-    return x.div(Uint224(*pop(&(y.encode())[..])));
+pub fn uqdiv(x: &Uint224, y: &Uint112) -> Uint224 {
+    return (*x).clone().div(Uint224(*pop(&(y.encode())[..])));
 }

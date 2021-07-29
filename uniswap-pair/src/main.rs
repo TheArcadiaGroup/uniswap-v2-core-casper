@@ -17,9 +17,9 @@ use std::{convert::TryFrom, ops::Add};
 // encodePacked is more space-efficient and doesn't call contracts
 use ethabi::{encode, ethereum_types::U128};
 
-use contract::{contract_api::{runtime::{self, get_blocktime, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
+use contract::{contract_api::{runtime::{self, get_blocktime, get_named_arg, put_key}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
 use types::{ApiError, BlockTime, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
-pub use uniswap_libs;
+pub use uniswap_libs::uq112x112;
 
 #[repr(u16)]
 pub enum Error {
@@ -52,9 +52,9 @@ impl ToBytes for MixedType {
 
 #[no_mangle]
 extern "C" fn getReserves() {
-    let _reserve0: [u8; 14] = get_key("reserve0");
-    let _reserve1: [u8; 14] = get_key("reserve1");
-    let _blockTimestampLast : u32 = get_key("blockTimestampLast ");
+    let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
+    let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
+    let _blockTimestampLast : u32 = get_key::<u32>("blockTimestampLast ");
     let mut result: Vec<MixedType> = Vec::new();
     result.push(MixedType::Bytes(_reserve0));
     result.push(MixedType::Bytes(_reserve1));
@@ -90,8 +90,21 @@ fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint11
     let timeElapsed: u32 = blockTimestamp - get_key::<u32>("blockTimestampLast");
     if (timeElapsed > u32::MIN && u128::from_be_bytes(*pop(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(*pop(&(_reserve1.encode())[..])) != u128::MIN) {
         let mut price0CumulativeLast: U256 = get_key::<U256>("price0CumulativeLast");
-        //let x: Uint224 = uniswap_libs::uq112x112::encode(_reserve0);
+        match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve1), &_reserve0)).encode()[..]) {
+            Ok(res) => price0CumulativeLast += res.0,
+            Err(e) => println!("Error @pair::_update - {}", e)
+        }
+        set_key::<U256>("price0CumulativeLast", price0CumulativeLast);
+        let mut price1CumulativeLast: U256 = get_key::<U256>("price1CumulativeLast");
+        match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve0), &_reserve1)).encode()[..]) {
+            Ok(res) => price1CumulativeLast += res.0,
+            Err(e) => println!("Error @pair::_update - {}", e)
+        }
+        set_key::<U256>("price1CumulativeLast", price1CumulativeLast);
     }
+    set_key::<[u8; 14]>("reserve0", *pop_u112(&(balance0.as_u128().encode())[..]));
+    set_key::<[u8; 14]>("reserve1", *pop_u112(&(balance1.as_u128().encode())[..]));
+    set_key::<u32>("blockTimestampLast", blockTimestamp);
 }
 
 fn ret<T: CLTyped + ToBytes>(value: T) {
@@ -122,6 +135,10 @@ fn set_key<T: ToBytes + CLTyped>(name: &str, value: T) {
 }
 
 fn pop(barry: &[u8]) -> &[u8; 16] {
+    barry.try_into().expect("slice with incorrect length")
+}
+
+fn pop_u112(barry: &[u8]) -> &[u8; 14] {
     barry.try_into().expect("slice with incorrect length")
 }
 fn main() {
