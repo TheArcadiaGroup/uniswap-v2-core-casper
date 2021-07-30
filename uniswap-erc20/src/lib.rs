@@ -9,6 +9,7 @@ use alloc::{
     string::String,
 };
 use core::convert::TryInto;
+use std::ops::{Add, Sub};
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
 use web3::signing::keccak256;
 use contract::{
@@ -22,30 +23,35 @@ use types::{
     runtime_args, CLType, CLTyped, CLValue, Group, Parameter, RuntimeArgs, URef, U256,
 };
 
+#[cfg(not(feature = "no_name"))]
 #[no_mangle]
 pub extern "C" fn name() {
     let val: String = get_key("name");
     ret(val)
 }
 
+#[cfg(not(feature = "no_symbol"))]
 #[no_mangle]
 pub extern "C" fn symbol() {
     let val: String = get_key("symbol");
     ret(val)
 }
 
+#[cfg(not(feature = "no_decimals"))]
 #[no_mangle]
 pub extern "C" fn decimals() {
     let val: u8 = get_key("decimals");
     ret(val)
 }
 
+#[cfg(not(feature = "no_total_supply"))]
 #[no_mangle]
 pub extern "C" fn total_supply() {
     let val: U256 = get_key("total_supply");
     ret(val)
 }
 
+#[cfg(not(feature = "no_balance_of"))]
 #[no_mangle]
 pub extern "C" fn balance_of() {
     let owner: AccountHash = runtime::get_named_arg("owner");
@@ -53,6 +59,7 @@ pub extern "C" fn balance_of() {
     ret(val)
 }
 
+#[cfg(not(feature = "no_allowance"))]
 #[no_mangle]
 pub extern "C" fn allowance() {
     let owner: AccountHash = runtime::get_named_arg("owner");
@@ -61,18 +68,21 @@ pub extern "C" fn allowance() {
     ret(val)
 }
 
+#[cfg(not(feature = "no_domain_separator"))]
 #[no_mangle]
 pub extern "C" fn domain_separator() {
     let val: [u8; 32] = get_key("domain_separator");
     ret(val)
 }
 
+#[cfg(not(feature = "no_permit_typehash"))]
 #[no_mangle]
 pub extern "C" fn permit_typehash() {
     let val: [u8; 32] = get_key("permit_typehash");
     ret(val)
 }
 
+#[cfg(not(feature = "no_nonces"))]
 #[no_mangle]
 pub extern "C" fn nonces() {
     let owner: AccountHash = runtime::get_named_arg("owner");
@@ -80,6 +90,7 @@ pub extern "C" fn nonces() {
     ret(val)
 }
 
+#[cfg(not(feature = "no_approve"))]
 #[no_mangle]
 pub extern "C" fn approve() {
     let spender: AccountHash = runtime::get_named_arg("spender");
@@ -87,6 +98,7 @@ pub extern "C" fn approve() {
     _approve(runtime::get_caller(), spender, amount);
 }
 
+#[cfg(not(feature = "no_transfer"))]
 #[no_mangle]
 pub extern "C" fn transfer() {
     let recipient: AccountHash = runtime::get_named_arg("recipient");
@@ -94,6 +106,7 @@ pub extern "C" fn transfer() {
     _transfer(runtime::get_caller(), recipient, amount);
 }
 
+#[cfg(not(feature = "no_transfer_from"))]
 #[no_mangle]
 pub extern "C" fn transfer_from() {
     let owner: AccountHash = runtime::get_named_arg("owner");
@@ -200,6 +213,22 @@ fn _transfer_from(owner: AccountHash, recipient: AccountHash, amount: U256) {
     );
 }
 
+fn _mint(to: AccountHash, value: U256) {
+    let total_supply: U256 = get_key::<U256>("total_supply").add(value);
+    set_key("total_supply", total_supply);
+    let to_key = balance_key(&to);
+    let new_to_balance: U256 = (get_key::<U256>(&to_key) + value);
+    set_key(&to_key, new_to_balance);
+}
+
+fn _burn(from: AccountHash, value: U256) {
+    let from_key = balance_key(&from);
+    let new_from_balance: U256 = (get_key::<U256>(&from_key) - value);
+    set_key(&from_key, new_from_balance);
+    let total_supply: U256 = get_key::<U256>("total_supply").sub(value);
+    set_key("total_supply", total_supply);
+}
+
 fn _approve(owner: AccountHash, spender: AccountHash, amount: U256) {
     set_key(&allowance_key(&owner, &spender), amount);
 }
@@ -251,8 +280,4 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
         EntryPointAccess::Public,
         EntryPointType::Contract,
     )
-}
-
-fn main() {
-    println!("Hello, UNI_ERC20!");
 }

@@ -13,14 +13,18 @@ contract = { package = "casper-contract", version="1.2" }
 solid = "0.1.5"
 ethabi = "14.1.0"
 parity-hash = "1.2.2"
-uniswap-libs = { path = "../uniswap-libs"}
+integer-sqrt = "0.1.5"
+uniswap-libs = { path = "../uniswap-libs" }
+uniswap-erc20 = { path = "../uniswap-erc20" }
 
-[[bin]]
-name = "uniswap-pair"
-path = "src/main.rs"
-bench = false
-doctest = false
-test = false
+# [[bin]]
+# name = "uniswap-pair"
+# path = "src/main.rs"
+# bench = false
+# doctest = false
+# test = false
+[lib]
+name = "uniswap_pair"
 
 [features]
 default = ["contract/std", "types/std"]

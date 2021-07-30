@@ -43,6 +43,24 @@ impl From<Error> for ApiError {
 }
 
 #[no_mangle]
+pub extern "C" fn feeTo() {
+    let val: AccountHash = get_key("feeTo");
+    ret(val)
+}
+
+#[no_mangle]
+pub extern "C" fn feeToSetter() {
+    let val: AccountHash = get_key("feeToSetter");
+    ret(val)
+}
+
+#[no_mangle]
+pub extern "C" fn allPairs() {
+    let val: Vec<ContractHash> = get_key("allPairs");
+    ret(val)
+}
+
+#[no_mangle]
 extern "C" fn allPairsLength() {
     let pairs: Vec<ContractHash> = get_key("allPairs");
     ret(U256::from(pairs.len()))
@@ -160,7 +178,8 @@ extern "C" fn createPair() {
     entry_points.add_entry_point(endpoint("price0CumulativeLast", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint("price1CumulativeLast", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint("kLast", vec![], CLType::U256));
-    entry_points.add_entry_point(endpoint("unlocked", vec![], CLType::U256));
+    // "unlocked" is private variable, so no getter
+    //entry_points.add_entry_point(endpoint("unlocked", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint(
         "getReserves",
         vec![],
@@ -313,8 +332,4 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
 // converts &[u8] => &[u8; 4]
 fn pop(barry: &[u8]) -> &[u8; 4] {
     barry.try_into().expect("slice with incorrect length")
-}
-
-fn main() {
-    println!("Hello, Factory!");
 }

@@ -1290,6 +1290,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "integer-sqrt"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "iovec"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2779,8 +2788,10 @@ dependencies = [
  "casper-contract",
  "casper-types",
  "ethabi 14.1.0",
+ "integer-sqrt",
  "parity-hash",
  "solid",
+ "uniswap-erc20",
  "uniswap-libs",
 ]
 

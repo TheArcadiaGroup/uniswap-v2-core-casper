@@ -20,12 +20,8 @@ primitive-types = "0.6.1"
 ethereum_abi = "0.3.0"
 web3 = "0.14.0"
 
-[[bin]]
-name = "uniswap-factory"
-path = "src/main.rs"
-bench = false
-doctest = false
-test = false
+[lib]
+name = "uniswap_factory"
 
 [features]
 default = ["contract/std", "types/std"]
