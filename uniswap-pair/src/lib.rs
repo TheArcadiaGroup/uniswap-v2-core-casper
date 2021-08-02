@@ -8,6 +8,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
 };
+use uniswap_erc20::balance_of;
 use core::convert::TryInto;
 use parity_hash::H256;
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, encode::Encode, int::{Uint112, Uint224}};
@@ -28,7 +29,14 @@ pub enum Error {
     UniswapV2Forbidden = 2,
     UniswapV2IdenticalAddresses = 3,
     UniswapV2Overflow = 4,
-    UniswapV2InsufficientLiquidityMinted = 5
+    UniswapV2InsufficientLiquidityMinted = 5,
+    UniswapV2InsufficientLiquidityBurned = 6,
+    UniswapV2Locked = 7,
+    UniswapV2InsufficientInputAmount = 8,
+    UniswapV2InsufficientOutputAmount = 9,
+    UniswapV2InsufficientLiquidity = 10,
+    UniswapV2InvalidTo = 11,
+    UniswapV2K = 12
 }
 
 impl From<Error> for ApiError {
@@ -134,9 +142,22 @@ extern "C" fn getReserves() {
 }
 // ***************** GETTERS - END ********************
 
+/// Function: mint(to: ContractHash) -> liquidity: U256
+/// Purpose: creates pool tokens
+/// # Arguments
+/// * `to` - An ContractHash that holds the pool's contract hash
+/// # Returns
+/// * `liquidity` - The newly created pool liquidity
+/// this low-level function should be called from a contract which performs important safety checks
 #[no_mangle]
 extern "C" fn mint() {
-    let to: AccountHash = runtime::get_named_arg("to");
+    // alternative for the lock() access modifier in Solidity
+    // serves as a mutex for external functions to mitigate reentrancy attacks
+    if (get_key::<U256>("unlocked") != U256::from(1)) {
+        runtime::revert(Error::UniswapV2Locked);
+    }
+    set_key("unlocked", U256::from(0));
+    let to: ContractHash = runtime::get_named_arg("to");
     let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
     let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
     // runtime_args should be the current contract hash, but so far this seems difficult to achieve because
@@ -160,7 +181,7 @@ extern "C" fn mint() {
             match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
                 Ok(res_1) => {
                     amount1 = balance1.sub(res_1.0);
-                    let feeOn: bool = _mintFee(Uint112(_reserve0), Uint112(_reserve1));
+                    let fee_on: bool = _mintFee(Uint112(_reserve0), Uint112(_reserve1));
                     // return value -> liquidity
                     let mut liquidity: U256;
                     let _total_supply: U256 = get_key::<U256>("total_supply");
@@ -173,19 +194,243 @@ extern "C" fn mint() {
                         liquidity = liquidity.min((amount1.mul(_total_supply)).div(res_1.0));
                     }
                     if (liquidity <= U256::from(0)) {
+                        // free the lock
+                        set_key("unlocked", U256::from(1));
                         runtime::revert(Error::UniswapV2InsufficientLiquidityMinted);
                     }
-                    //_mint(to, liquidity);
-                    _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
-                    if (feeOn) {
-                        set_key::<U256>("kLast", res_0.0.mul(res_1.0));
+                    match AccountHash::from_bytes(to.as_bytes()) {
+                        Ok(res) => {
+                            _mint(res.0, liquidity);
+                            _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
+                            if (fee_on) {
+                                set_key::<U256>("kLast", res_0.0.mul(res_1.0));
+                            }
+                            // free the lock
+                            set_key("unlocked", U256::from(1));
+                            ret(liquidity);
+                        },
+                        Err(e) => eprintln!("Error @pair::mint - {}", e)
                     }
                 }
-                Err(e) => println!("Error @pair::mint - {}", e)
+                Err(e) => eprintln!("Error @pair::mint - {}", e)
             }
         }
-        Err(e) => println!("Error @pair::mint - {}", e)
+        Err(e) => eprintln!("Error @pair::mint - {}", e)
     }
+    // free the lock
+    set_key("unlocked", U256::from(1));
+}
+
+/// Function: burn(to: AccountHash) -> (amount0: U256, amount1: U256)
+/// Purpose: destroys pool tokens.
+/// # Arguments
+/// * `to` - An AccountHash that holds the liquidity provider's account hash
+/// # Returns
+/// * `amount0` - the first token's amount burned from the pool and transfered to the provider
+/// * `amount1` - the second token's amount burned from the pool and transfered to the provider
+// this low-level function should be called from a contract which performs important safety checks
+#[no_mangle]
+extern "C" fn burn() {
+    // alternative for the lock() access modifier in Solidity
+    // serves as a mutex for external functions to mitigate reentrancy attacks
+    if (get_key::<U256>("unlocked") != U256::from(1)) {
+        runtime::revert(Error::UniswapV2Locked);
+    }
+    set_key("unlocked", U256::from(0));
+    let to: AccountHash = runtime::get_named_arg("to");
+    // getting the pair's tokens' reserves & hashes
+    let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
+    let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
+    let _token0: ContractHash = get_key::<ContractHash>("token0");
+    let _token1: ContractHash = get_key::<ContractHash>("token1");
+    // getting the tokens' balances for the current pair
+    let mut balance0: U256 = call_contract(_token0, "balance_of", RuntimeArgs::new());
+    let mut balance1: U256 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    let liquidity: U256 = call_contract(
+        get_key::<ContractHash>("UNI-V2"),
+        "balance_of",
+        RuntimeArgs::new());
+    let fee_on: bool = _mintFee(Uint112(_reserve0), Uint112(_reserve1));
+    let _total_supply: U256 = get_key::<U256>("total_supply");
+    // return params are amount0 and amount1
+    let amount0: U256 = (liquidity.mul(balance0)).div(_total_supply);
+    let amount1: U256 = (liquidity.mul(balance1)).div(_total_supply);
+    if (amount0 <= U256::from(0) || amount1 <= U256::from(0)) {
+        // free the lock
+        set_key("unlocked", U256::from(1));
+        runtime::revert(Error::UniswapV2InsufficientLiquidityBurned);
+    }
+    //_burn(address(this), liquidity);
+    _safeTransfer(_token0, to, amount0);
+    _safeTransfer(_token1, to, amount1);
+    // get latest balances after the transfers
+    balance0 = call_contract(_token0, "balance_of", RuntimeArgs::new());
+    balance1 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    // update the pool's reserves
+    _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
+    if (fee_on) {
+        match U256::from_bytes(&Uint112(_reserve0).encode()[..]) {
+            Ok(res_0) => {
+                match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
+                    Ok(res_1) => {
+                        set_key::<U256>("kLast", res_0.0.mul(res_1.0));
+                    }
+                    Err(e) => eprintln!("Error @pair::burn - {}", e)
+                }
+            }
+            Err(e) => eprintln!("Error @pair::burn - {}", e)
+        }
+    }
+    // free the lock
+    set_key("unlocked", U256::from(1));
+    ret((amount0, amount1))
+}
+
+/// Function: swap(amount0_out: U256, amount1_out: U256, to: AccountHash, data: Bytes)
+/// Purpose: swaps tokens. For regular swaps, data.length must be 0. Also see Flash Swaps.
+/// # Arguments
+/// * `amount0_out` - the first token's amount transfered from the pool to the provider
+/// * `amount1_out` - the second token's amount transfered from the pool to the provider
+/// * `to` - An AccountHash that holds the liquidity provider's account hash
+/// * `data` - A Bytes that indicates the nature of the swap (regular or flash)
+// this low-level function should be called from a contract which performs important safety checks
+#[no_mangle]
+extern "C" fn swap() {
+    // alternative for the lock() access modifier in Solidity
+    // serves as a mutex for external functions to mitigate reentrancy attacks
+    if (get_key::<U256>("unlocked") != U256::from(1)) {
+        runtime::revert(Error::UniswapV2Locked);
+    }
+    set_key("unlocked", U256::from(0));
+    let amount0_out: U256 = runtime::get_named_arg("amount0_out");
+    let amount1_out: U256 = runtime::get_named_arg("amount1_out");
+    let to: AccountHash = runtime::get_named_arg("to");
+    let data: Bytes = runtime::get_named_arg("data");
+    if (amount0_out <= U256::from(0) && amount1_out <= U256::from(0)) {
+        // free the lock
+        set_key("unlocked", U256::from(1));
+        runtime::revert(Error::UniswapV2InsufficientOutputAmount);
+    }
+    // getting the pair's tokens' reserves
+    let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
+    let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
+    match U256::from_bytes(&Uint112(_reserve0).encode()[..]) {
+        Ok(res_O) => {
+            match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
+                Ok(res_1) => {
+                    if (amount0_out >= res_O.0 || amount1_out >= res_1.0) {
+                        // free the lock
+                        set_key("unlocked", U256::from(1));
+                        runtime::revert(Error::UniswapV2InsufficientLiquidity);
+                    }
+                    let balance0: U256;
+                    let balance1: U256;
+                    { // scope for _token{0,1}, avoids stack too deep errors
+                        let _token0: ContractHash = get_key::<ContractHash>("token0");
+                        let _token1: ContractHash = get_key::<ContractHash>("token1");
+                        if (to.value() == _token0.value() || to.value() == _token1.value()) {
+                            // free the lock
+                            set_key("unlocked", U256::from(1));
+                            runtime::revert(Error::UniswapV2InvalidTo);
+                        }
+                        if (amount0_out > U256::from(0)) {
+                            _safeTransfer(_token0, to, amount0_out); // optimistically transfer tokens
+                        }
+                        if (amount1_out > U256::from(0)) {
+                            _safeTransfer(_token1, to, amount1_out); // optimistically transfer tokens
+                        }
+                        // ---call to uniswapV2Call fct which is not implemented in the original UniswapV2---
+                        // get latest balances after the transfers
+                        balance0 = call_contract(_token0, "balance_of", RuntimeArgs::new());
+                        balance1 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+                    }
+                    let amountO_in: U256 = if (balance0 > res_O.0 - amount0_out) {
+                        balance0 - (res_O.0 - amount0_out)
+                    } else {
+                        U256::from(0)
+                    };
+                    let amount1_in: U256 = if (balance1 > res_1.0 - amount1_out) {
+                        balance1 - (res_1.0 - amount1_out)
+                    } else {
+                        U256::from(0)
+                    };
+                    if (amountO_in <= U256::from(0) && amount1_in <= U256::from(0)) {
+                        // free the lock
+                        set_key("unlocked", U256::from(1));
+                        runtime::revert(Error::UniswapV2InsufficientInputAmount);
+                    }
+                    { // scope for reserve{0,1}Adjusted, avoids stack too deep errors
+                        let balance0_adjusted: U256 = balance0.mul(U256::from(1000)).sub(amountO_in.mul(U256::from(3)));
+                        let balance1_adjusted: U256 = balance1.mul(U256::from(1000)).sub(amount1_in.mul(U256::from(3)));
+                        if (balance0_adjusted.mul(balance1_adjusted) < res_O.0.mul(res_1.0).mul(U256::from(1000i32.pow(2)))) {
+                            // free the lock
+                            set_key("unlocked", U256::from(1));
+                            runtime::revert(Error::UniswapV2K);
+                        }
+                    }
+                    _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
+                }
+                Err(e) => eprintln!("Error @pair::swap - {}", e)
+            }
+        }
+        Err(e) => eprintln!("Error @pair::swap - {}", e)
+    }
+    // free the lock
+    set_key("unlocked", U256::from(1));
+}
+
+// force balances to match reserves
+#[no_mangle]
+extern "C" fn skim() {
+    // alternative for the lock() access modifier in Solidity
+    // serves as a mutex for external functions to mitigate reentrancy attacks
+    if (get_key::<U256>("unlocked") != U256::from(1)) {
+        runtime::revert(Error::UniswapV2Locked);
+    }
+    set_key("unlocked", U256::from(0));
+    let to: AccountHash = runtime::get_named_arg("to");
+    let _token0: ContractHash = get_key::<ContractHash>("token0");
+    let _token1: ContractHash = get_key::<ContractHash>("token1");
+    let balance0: U256 = call_contract(_token0, "balance_of", RuntimeArgs::new());
+    let balance1: U256 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    // getting the pair's tokens' reserves
+    let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
+    let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
+    match U256::from_bytes(&Uint112(_reserve0).encode()[..]) {
+        Ok(res0) => {
+            match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
+                Ok(res1) => {
+                    _safeTransfer(_token0, to, balance0.sub(res0.0));
+                    _safeTransfer(_token1, to, balance1.sub(res1.0));
+                }
+                Err(e) => eprintln!("Error @pair::skim - {}", e)
+            }
+        }
+        Err(e) => eprintln!("Error @pair::skim - {}", e)
+    }
+    // free the lock
+    set_key("unlocked", U256::from(1));
+}
+
+// force reserves to match balances
+#[no_mangle]
+extern "C" fn sync() {
+    // alternative for the lock() access modifier in Solidity
+    // serves as a mutex for external functions to mitigate reentrancy attacks
+    if (get_key::<U256>("unlocked") != U256::from(1)) {
+        runtime::revert(Error::UniswapV2Locked);
+    }
+    set_key("unlocked", U256::from(0));
+    let _token0: ContractHash = get_key::<ContractHash>("token0");
+    let _token1: ContractHash = get_key::<ContractHash>("token1");
+    let balance0: U256 = call_contract(_token0, "balance_of", RuntimeArgs::new());
+    let balance1: U256 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    // getting the pair's tokens' reserves
+    let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
+    let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
+    _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
+    // free the lock
+    set_key("unlocked", U256::from(1));
 }
 
 fn _safeTransfer(token: ContractHash, to: AccountHash, value: U256) {
@@ -199,8 +444,11 @@ fn _safeTransfer(token: ContractHash, to: AccountHash, value: U256) {
     // from within the contract call
 }
 
+// update reserves and, on the first call per block, price accumulators
 fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint112) {
     if (balance0 > U256::from(2i32.pow(112) - 1) || balance1 > U256::from(2i32.pow(112) - 1)) {
+        // free the lock
+        set_key("unlocked", U256::from(1));
         runtime::revert(Error::UniswapV2Overflow);
     }
     // assign a value to blockTimestamp just to avoid the error "use of possibly-uninitialized variable"
@@ -208,20 +456,20 @@ fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint11
     // Here, we are sure that checked_rem() will result in Some() and not None
     match u64::from(get_blocktime()).checked_rem(2i32.pow(32) as u64) {
         Some(res) => blockTimestamp = res as u32,
-        None => println!("Cannot divide by zero @pair::_update")
+        None => eprintln!("Cannot divide by zero @pair::_update")
     }
     let timeElapsed: u32 = blockTimestamp - get_key::<u32>("blockTimestampLast");
-    if (timeElapsed > u32::MIN && u128::from_be_bytes(*pop(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(*pop(&(_reserve1.encode())[..])) != u128::MIN) {
+    if (timeElapsed > u32::MIN && u128::from_be_bytes(*pop_u128(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(*pop_u128(&(_reserve1.encode())[..])) != u128::MIN) {
         let mut price0CumulativeLast: U256 = get_key::<U256>("price0CumulativeLast");
         match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve1), &_reserve0)).encode()[..]) {
             Ok(res) => price0CumulativeLast += res.0,
-            Err(e) => println!("Error @pair::_update - {}", e)
+            Err(e) => eprintln!("Error @pair::_update - {}", e)
         }
         set_key::<U256>("price0CumulativeLast", price0CumulativeLast);
         let mut price1CumulativeLast: U256 = get_key::<U256>("price1CumulativeLast");
         match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve0), &_reserve1)).encode()[..]) {
             Ok(res) => price1CumulativeLast += res.0,
-            Err(e) => println!("Error @pair::_update - {}", e)
+            Err(e) => eprintln!("Error @pair::_update - {}", e)
         }
         set_key::<U256>("price1CumulativeLast", price1CumulativeLast);
     }
@@ -230,11 +478,12 @@ fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint11
     set_key::<u32>("blockTimestampLast", blockTimestamp);
 }
 
+// if fee is on, mint liquidity equivalent to 1/6th of the growth in sqrt(k)
 fn _mintFee(_reserve0: Uint112, _reserve1: Uint112) -> bool {
     let feeTo: AccountHash = call_contract(get_key("factory"), "feeTo", RuntimeArgs::new());
-    let feeOn: bool = feeTo.value() != [0u8; 32];
+    let fee_on: bool = feeTo.value() != [0u8; 32];
     let _kLast: U256 = get_key("kLast");
-    if (feeOn) {
+    if (fee_on) {
         if (_kLast != U256::from(0)) {
             let rootK: U256;
             // convert _reserve0 from Uint112 to U256
@@ -251,26 +500,45 @@ fn _mintFee(_reserve0: Uint112, _reserve1: Uint112) -> bool {
                                         let numerator: U256 = get_key::<U256>("total_supply").mul(rootK.sub(rootKLast));
                                         let denominator: U256 = rootK.mul(U256::from(5)).add(rootKLast);
                                         let liquidity: U256 = numerator.div(denominator);
-                                        // need to include _mint fct from UniswapV2ERC20
-                                        //if (liquidity > U256::from(0)) _mint(feeTo, liquidity)
-                                        //uniswap_erc20::
+                                        if (liquidity > U256::from(0)) {
+                                            _mint(feeTo, liquidity)
+                                        }
                                     }
                                 }
-                                None => println!("Multiplication using 'checked_mul' failed due to Overflow")
+                                None => eprintln!("Multiplication using 'checked_mul' failed due to Overflow")
                             }
                         }
-                        Err(e) => println!("Error @pair::_mintFee - {}", e)
+                        Err(e) => eprintln!("Error @pair::_mintFee - {}", e)
                     }
                 },
-                Err(e) => println!("Error @pair::_mintFee - {}", e)
+                Err(e) => eprintln!("Error @pair::_mintFee - {}", e)
             }
         }
     }
     else if (_kLast != U256::from(0)) {
         set_key::<U256>("kLast", U256::from(0));
     }
-    return feeOn;
+    return fee_on;
 }
+
+// we have no access to the uniswap-erc20 contract's internal functions, so we'll define the ones we need here:
+// ***** START: unsiwap-erc20 Internal functions *****
+fn _mint(to: AccountHash, value: U256) {
+    let total_supply: U256 = get_key::<U256>("total_supply").add(value);
+    set_key("total_supply", total_supply);
+    let to_key = balance_key(&to);
+    let new_to_balance: U256 = (get_key::<U256>(&to_key) + value);
+    set_key(&to_key, new_to_balance);
+}
+
+fn _burn(from: AccountHash, value: U256) {
+    let from_key = balance_key(&from);
+    let new_from_balance: U256 = (get_key::<U256>(&from_key) - value);
+    set_key(&from_key, new_from_balance);
+    let total_supply: U256 = get_key::<U256>("total_supply").sub(value);
+    set_key("total_supply", total_supply);
+}
+// ***** END: unsiwap-erc20 Internal functions *****
 
 fn ret<T: CLTyped + ToBytes>(value: T) {
     runtime::ret(CLValue::from_t(value).unwrap_or_revert())
@@ -299,10 +567,18 @@ fn set_key<T: ToBytes + CLTyped>(name: &str, value: T) {
     }
 }
 
-fn pop(barry: &[u8]) -> &[u8; 16] {
+// helper function to convert &[u8] to &[u8; 16]
+fn pop_u128(barry: &[u8]) -> &[u8; 16] {
     barry.try_into().expect("slice with incorrect length")
 }
 
+// helper function to convert &[u8] to &[u8; 14]
 fn pop_u112(barry: &[u8]) -> &[u8; 14] {
     barry.try_into().expect("slice with incorrect length")
 }
+
+// ***** START: unsiwap-erc20 keys' getters *****
+fn balance_key(account: &AccountHash) -> String {
+    format!("balances_{}", account)
+}
+// ***** END: unsiwap-erc20 keys' getters *****

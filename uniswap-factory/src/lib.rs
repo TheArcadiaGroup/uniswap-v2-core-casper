@@ -86,6 +86,13 @@ extern "C" fn setFeeToSetter() {
 
 #[no_mangle]
 extern "C" fn createPair() {
+    // ***** START: uniswap-erc20 keys *****
+    let token_name: String = "Uniswap V2".to_string();
+    let token_symbol: String = "UNI-V2".to_string();
+    let token_decimals: u8 = 18;
+    let token_total_supply: U256 = U256::from(0);
+    let permit_typehash: Bytes32 = Bytes32(keccak256(b"Permit(AccountHash owner,AccountHash spender,U256 value,U256 nonce,U256 deadline)"));
+    // ***** END: uniswap-erc20 keys *****
     let tokenA: ContractHash = runtime::get_named_arg("tokenA");
     let tokenB: ContractHash = runtime::get_named_arg("tokenB");
     if (tokenA == tokenB) {
@@ -117,6 +124,28 @@ extern "C" fn createPair() {
     // Pair contract creation
     // 1 - set up named keys
     let mut named_keys = NamedKeys::new();
+    // Unlike solidity, there's no inheritance in rust, so I'll be adding the named keys
+    // of the uniswap-erc20 crate here, since we can access its entry points:
+    // ***** Start of the named keys of the uniswap-erc20 crate *****
+    named_keys.insert("name".to_string(), storage::new_uref(token_name).into());
+    named_keys.insert("symbol".to_string(), storage::new_uref(token_symbol).into());
+    named_keys.insert(
+        "decimals".to_string(),
+        storage::new_uref(token_decimals).into(),
+    );
+    named_keys.insert(
+        "total_supply".to_string(),
+        storage::new_uref(token_total_supply).into(),
+    );
+    named_keys.insert(
+        balance_key(&runtime::get_caller()),
+        storage::new_uref(token_total_supply).into(),
+    );
+    named_keys.insert(
+        nonce_key(&runtime::get_caller()),
+        storage::new_uref(0).into(),
+    );
+    // ***** End of the uniswap-erc20 crate named keys *****
     named_keys.insert(
         "minimum_liquidity".to_string(), 
         storage::new_uref(U256::from(1000)).into()
@@ -332,4 +361,12 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
 // converts &[u8] => &[u8; 4]
 fn pop(barry: &[u8]) -> &[u8; 4] {
     barry.try_into().expect("slice with incorrect length")
+}
+// helper functions for the createPair function
+fn balance_key(account: &AccountHash) -> String {
+    format!("balances_{}", account)
+}
+
+fn nonce_key(account: &AccountHash) -> String {
+    format!("nonces_{}", account)
 }
