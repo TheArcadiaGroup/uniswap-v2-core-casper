@@ -2752,6 +2752,7 @@ version = "0.1.0"
 dependencies = [
  "casper-contract",
  "casper-types",
+ "elliptic-curve",
  "solid",
  "web3 0.14.0",
 ]

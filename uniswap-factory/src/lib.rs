@@ -25,7 +25,7 @@ use web3::signing::keccak256;
 use ethabi::Token;
 use ethabi::{encode, ethereum_types::H160};
 
-use contract::{contract_api::{runtime::{self, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
+use contract::{contract_api::{runtime::{self, call_contract, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
 use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
 
 #[repr(u16)]
@@ -86,13 +86,6 @@ extern "C" fn setFeeToSetter() {
 
 #[no_mangle]
 extern "C" fn createPair() {
-    // ***** START: uniswap-erc20 keys *****
-    let token_name: String = "Uniswap V2".to_string();
-    let token_symbol: String = "UNI-V2".to_string();
-    let token_decimals: u8 = 18;
-    let token_total_supply: U256 = U256::from(0);
-    let permit_typehash: Bytes32 = Bytes32(keccak256(b"Permit(AccountHash owner,AccountHash spender,U256 value,U256 nonce,U256 deadline)"));
-    // ***** END: uniswap-erc20 keys *****
     let tokenA: ContractHash = runtime::get_named_arg("tokenA");
     let tokenB: ContractHash = runtime::get_named_arg("tokenB");
     if (tokenA == tokenB) {
@@ -110,36 +103,47 @@ extern "C" fn createPair() {
     if (pair_key(&token0, &token1).to_string() != H256::zero().to_string()) {
         runtime::revert(Error::UniswapV2PairExists);
     }
-    // calling smart contracts
-    // runtime::call_contract(contract_hash, entry_point_name, runtime_args)
+    // get tokens names and symbols
+    let token0_name: String = call_contract(token0, "name", RuntimeArgs::new());
+    let token1_name: String = call_contract(token1, "name", RuntimeArgs::new());
+    let token0_symbol: String = call_contract(token0, "symbol", RuntimeArgs::new());
+    let token1_symbol: String = call_contract(token1, "symbol", RuntimeArgs::new());
+    // ***** START: uniswap-erc20 keys *****
+    // the Pair's name containing tokenA and tokenB will be tokenA-tokenB
+    let pair_name: String = [token0_name, "-".to_string(), token1_name].concat();
+    let pair_symbol: String = [token0_symbol, "-".to_string(), token1_symbol].concat();
+    let pair_decimals: u8 = 18;
+    let pair_total_supply: U256 = U256::from(0);
+    let permit_typehash: Bytes32 = Bytes32(keccak256(b"Permit(AccountHash owner,AccountHash spender,U256 value,U256 nonce,U256 deadline)"));
+    // ***** END: uniswap-erc20 keys *****
     // generate salt
     let mut tok0_address = [0u8; 20];
     tok0_address.copy_from_slice(&token0.as_bytes());
     let mut tok1_address = [0u8; 20];
     tok1_address.copy_from_slice(&token1.as_bytes());
-    let salt: Bytes32 = Bytes32(keccak256(&mut encode(&[Token::Array(vec![
-        Token::Address(tok0_address.into()),
-        Token::Address(tok1_address.into()),
-    ])])));
+    // let salt: Bytes32 = Bytes32(keccak256(&mut encode(&[Token::Array(vec![
+    //     Token::Address(tok0_address.into()),
+    //     Token::Address(tok1_address.into()),
+    // ])])));
     // Pair contract creation
     // 1 - set up named keys
     let mut named_keys = NamedKeys::new();
     // Unlike solidity, there's no inheritance in rust, so I'll be adding the named keys
     // of the uniswap-erc20 crate here, since we can access its entry points:
     // ***** Start of the named keys of the uniswap-erc20 crate *****
-    named_keys.insert("name".to_string(), storage::new_uref(token_name).into());
-    named_keys.insert("symbol".to_string(), storage::new_uref(token_symbol).into());
+    named_keys.insert("name".to_string(), storage::new_uref(pair_name.clone()).into());
+    named_keys.insert("symbol".to_string(), storage::new_uref(pair_symbol).into());
     named_keys.insert(
         "decimals".to_string(),
-        storage::new_uref(token_decimals).into(),
+        storage::new_uref(pair_decimals).into(),
     );
     named_keys.insert(
         "total_supply".to_string(),
-        storage::new_uref(token_total_supply).into(),
+        storage::new_uref(pair_total_supply).into(),
     );
     named_keys.insert(
         balance_key(&runtime::get_caller()),
-        storage::new_uref(token_total_supply).into(),
+        storage::new_uref(pair_total_supply).into(),
     );
     named_keys.insert(
         nonce_key(&runtime::get_caller()),
@@ -196,6 +200,13 @@ extern "C" fn createPair() {
     );
     // 2 - set up entry points
     let mut entry_points = EntryPoints::new();
+    // START - uniswap-erc20 endpoints (since no inheritance)
+    entry_points.add_entry_point(endpoint("name", vec![], CLType::String));
+    entry_points.add_entry_point(endpoint("symbol", vec![], CLType::String));
+    entry_points.add_entry_point(endpoint("decimals", vec![], CLType::U8));
+    entry_points.add_entry_point(endpoint("total_supply", vec![], CLType::U32));
+    entry_points.add_entry_point(endpoint("permit_typehash", vec![], CLType::Any));
+    // END - uniswap-erc20 endpoints
     entry_points.add_entry_point(endpoint("minimum_liquidity", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint("selector", vec![], CLType::Any));
     entry_points.add_entry_point(endpoint("factory", vec![], AccountHash::cl_type()));
@@ -253,8 +264,8 @@ extern "C" fn createPair() {
     // 3 - create the contract
     let (contract_hash, _) =
         storage::new_contract(entry_points, Some(named_keys), None, None);
-    runtime::put_key("Pair", contract_hash.into());
-    runtime::put_key("Pair_hash", storage::new_uref(contract_hash).into());
+    runtime::put_key(&pair_name, contract_hash.into());
+    runtime::put_key(&([pair_name, "_hash".to_string()].concat()), storage::new_uref(contract_hash).into());
     // handling the pair creation by updating the storage
     set_key(&pair_key(&token0, &token1), contract_hash);
     set_key(&pair_key(&token1, &token0), contract_hash);

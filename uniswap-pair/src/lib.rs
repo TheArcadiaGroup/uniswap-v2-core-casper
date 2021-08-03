@@ -60,6 +60,37 @@ impl ToBytes for MixedType {
 }
 
 // ***************** GETTERS - START ********************
+// START - uniswap-erc20 getters
+#[no_mangle]
+pub extern "C" fn name() {
+    let val: String = get_key("name");
+    ret(val)
+}
+
+#[no_mangle]
+pub extern "C" fn symbol() {
+    let val: String = get_key("symbol");
+    ret(val)
+}
+
+#[no_mangle]
+pub extern "C" fn decimals() {
+    let val: u8 = get_key("decimals");
+    ret(val)
+}
+
+#[no_mangle]
+pub extern "C" fn total_supply() {
+    let val: U256 = get_key("total_supply");
+    ret(val)
+}
+
+#[no_mangle]
+pub extern "C" fn permit_typehash() {
+    let val: [u8; 32] = get_key("permit_typehash");
+    ret(val)
+}
+// END - uniswap-erc20 getters
 #[no_mangle]
 extern "C" fn minimum_liquidity() {
     let val: U256 = get_key("minimum_liquidity");
@@ -135,20 +166,19 @@ extern "C" fn getReserves() {
     result.push(MixedType::Bytes(_reserve0));
     result.push(MixedType::Bytes(_reserve1));
     result.push(MixedType::Number(_blockTimestampLast));
-    // result.push(_reserve0.into());
-    // result.push(_reserve1.into());
-    // result.push(CLType::ByteArray(_blockTimestampLast));
     ret(result)
 }
 // ***************** GETTERS - END ********************
 
 /// Function: mint(to: ContractHash) -> liquidity: U256
-/// Purpose: creates pool tokens
+///
+/// Purpose: creates pool tokens.
 /// # Arguments
-/// * `to` - An ContractHash that holds the pool's contract hash
+/// * `to` - An ContractHash that holds the pool's contract hash.
 /// # Returns
-/// * `liquidity` - The newly created pool liquidity
-/// this low-level function should be called from a contract which performs important safety checks
+/// * `liquidity` - The newly created pool liquidity.
+///
+/// this low-level function should be called from a contract which performs important safety checks.
 #[no_mangle]
 extern "C" fn mint() {
     // alternative for the lock() access modifier in Solidity
@@ -160,17 +190,22 @@ extern "C" fn mint() {
     let to: ContractHash = runtime::get_named_arg("to");
     let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
     let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
-    // runtime_args should be the current contract hash, but so far this seems difficult to achieve because
-    // if we are storing each contract's hash under a key named contract_name, we can't get the exact Pair contract's hash
-    // since we're deploying many Pair contracts in the network, I need to find a workaround.
+    let current_contract_hash: ContractHash = get_key::<ContractHash>(&get_key::<String>("name"));
+    let mut named_args = RuntimeArgs::new();
+    match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
+        Ok(hash) => {
+            named_args.insert("account", hash.0);
+        }
+        Err(e) => eprintln!("Error @pair::mint - {}", e)
+    }
     let balance0: U256 = call_contract(
         get_key::<ContractHash>("token0"),
         "balance_of",
-        RuntimeArgs::new());
+        named_args.clone());
     let balance1: U256 = call_contract(
         get_key::<ContractHash>("token1"),
         "balance_of",
-        RuntimeArgs::new());
+        named_args.clone());
     let amount0: U256;
     let amount1: U256;
     // convert _reserve0 from [u8; 14] to U256
@@ -222,13 +257,15 @@ extern "C" fn mint() {
 }
 
 /// Function: burn(to: AccountHash) -> (amount0: U256, amount1: U256)
+///
 /// Purpose: destroys pool tokens.
 /// # Arguments
-/// * `to` - An AccountHash that holds the liquidity provider's account hash
+/// * `to` - An AccountHash that holds the liquidity provider's account hash.
 /// # Returns
-/// * `amount0` - the first token's amount burned from the pool and transfered to the provider
-/// * `amount1` - the second token's amount burned from the pool and transfered to the provider
-// this low-level function should be called from a contract which performs important safety checks
+/// * `amount0` - the first token's amount burned from the pool and transfered to the provider.
+/// * `amount1` - the second token's amount burned from the pool and transfered to the provider.
+///
+/// this low-level function should be called from a contract which performs important safety checks.
 #[no_mangle]
 extern "C" fn burn() {
     // alternative for the lock() access modifier in Solidity
@@ -243,13 +280,22 @@ extern "C" fn burn() {
     let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
     let _token0: ContractHash = get_key::<ContractHash>("token0");
     let _token1: ContractHash = get_key::<ContractHash>("token1");
+    // get current contract hash
+    let current_contract_hash: ContractHash = get_key::<ContractHash>(&get_key::<String>("name"));
+    let mut named_args = RuntimeArgs::new();
+    match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
+        Ok(hash) => {
+            named_args.insert("account", hash.0);
+        }
+        Err(e) => eprintln!("Error @pair::burn - {}", e)
+    }
     // getting the tokens' balances for the current pair
-    let mut balance0: U256 = call_contract(_token0, "balance_of", RuntimeArgs::new());
-    let mut balance1: U256 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    let mut balance0: U256 = call_contract(_token0, "balance_of", named_args.clone());
+    let mut balance1: U256 = call_contract(_token1, "balance_of", named_args.clone());
     let liquidity: U256 = call_contract(
         get_key::<ContractHash>("UNI-V2"),
         "balance_of",
-        RuntimeArgs::new());
+        named_args.clone());
     let fee_on: bool = _mintFee(Uint112(_reserve0), Uint112(_reserve1));
     let _total_supply: U256 = get_key::<U256>("total_supply");
     // return params are amount0 and amount1
@@ -264,8 +310,8 @@ extern "C" fn burn() {
     _safeTransfer(_token0, to, amount0);
     _safeTransfer(_token1, to, amount1);
     // get latest balances after the transfers
-    balance0 = call_contract(_token0, "balance_of", RuntimeArgs::new());
-    balance1 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    balance0 = call_contract(_token0, "balance_of", named_args.clone());
+    balance1 = call_contract(_token1, "balance_of", named_args.clone());
     // update the pool's reserves
     _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
     if (fee_on) {
@@ -287,13 +333,15 @@ extern "C" fn burn() {
 }
 
 /// Function: swap(amount0_out: U256, amount1_out: U256, to: AccountHash, data: Bytes)
+///
 /// Purpose: swaps tokens. For regular swaps, data.length must be 0. Also see Flash Swaps.
 /// # Arguments
-/// * `amount0_out` - the first token's amount transfered from the pool to the provider
-/// * `amount1_out` - the second token's amount transfered from the pool to the provider
-/// * `to` - An AccountHash that holds the liquidity provider's account hash
-/// * `data` - A Bytes that indicates the nature of the swap (regular or flash)
-// this low-level function should be called from a contract which performs important safety checks
+/// * `amount0_out` - the first token's amount transfered from the pool to the provider.
+/// * `amount1_out` - the second token's amount transfered from the pool to the provider.
+/// * `to` - An AccountHash that holds the liquidity provider's account hash.
+/// * `data` - A Bytes that indicates the nature of the swap (regular or flash).
+///
+/// this low-level function should be called from a contract which performs important safety checks.
 #[no_mangle]
 extern "C" fn swap() {
     // alternative for the lock() access modifier in Solidity
@@ -340,9 +388,18 @@ extern "C" fn swap() {
                             _safeTransfer(_token1, to, amount1_out); // optimistically transfer tokens
                         }
                         // ---call to uniswapV2Call fct which is not implemented in the original UniswapV2---
+                        // get current contract hash
+                        let current_contract_hash: ContractHash = get_key::<ContractHash>(&get_key::<String>("name"));
+                        let mut named_args = RuntimeArgs::new();
+                        match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
+                            Ok(hash) => {
+                                named_args.insert("account", hash.0);
+                            }
+                            Err(e) => eprintln!("Error @pair::swap - {}", e)
+                        }
                         // get latest balances after the transfers
-                        balance0 = call_contract(_token0, "balance_of", RuntimeArgs::new());
-                        balance1 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+                        balance0 = call_contract(_token0, "balance_of", named_args.clone());
+                        balance1 = call_contract(_token1, "balance_of", named_args.clone());
                     }
                     let amountO_in: U256 = if (balance0 > res_O.0 - amount0_out) {
                         balance0 - (res_O.0 - amount0_out)
@@ -379,7 +436,11 @@ extern "C" fn swap() {
     set_key("unlocked", U256::from(1));
 }
 
-// force balances to match reserves
+/// Function: skim(to: ContractHash)
+///
+/// Purpose: force balances to match reserves.
+/// # Arguments
+/// * `to` - An ContractHash that holds the pool's contract hash.
 #[no_mangle]
 extern "C" fn skim() {
     // alternative for the lock() access modifier in Solidity
@@ -391,8 +452,17 @@ extern "C" fn skim() {
     let to: AccountHash = runtime::get_named_arg("to");
     let _token0: ContractHash = get_key::<ContractHash>("token0");
     let _token1: ContractHash = get_key::<ContractHash>("token1");
-    let balance0: U256 = call_contract(_token0, "balance_of", RuntimeArgs::new());
-    let balance1: U256 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    // get current contract hash
+    let current_contract_hash: ContractHash = get_key::<ContractHash>(&get_key::<String>("name"));
+    let mut named_args = RuntimeArgs::new();
+    match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
+        Ok(hash) => {
+            named_args.insert("account", hash.0);
+        }
+        Err(e) => eprintln!("Error @pair::skim - {}", e)
+    }
+    let balance0: U256 = call_contract(_token0, "balance_of", named_args.clone());
+    let balance1: U256 = call_contract(_token1, "balance_of", named_args.clone());
     // getting the pair's tokens' reserves
     let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
     let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
@@ -412,7 +482,9 @@ extern "C" fn skim() {
     set_key("unlocked", U256::from(1));
 }
 
-// force reserves to match balances
+/// Function: sync()
+///
+/// Purpose: force reserves to match balances.
 #[no_mangle]
 extern "C" fn sync() {
     // alternative for the lock() access modifier in Solidity
@@ -423,8 +495,17 @@ extern "C" fn sync() {
     set_key("unlocked", U256::from(0));
     let _token0: ContractHash = get_key::<ContractHash>("token0");
     let _token1: ContractHash = get_key::<ContractHash>("token1");
-    let balance0: U256 = call_contract(_token0, "balance_of", RuntimeArgs::new());
-    let balance1: U256 = call_contract(_token1, "balance_of", RuntimeArgs::new());
+    // get current contract hash
+    let current_contract_hash: ContractHash = get_key::<ContractHash>(&get_key::<String>("name"));
+    let mut named_args = RuntimeArgs::new();
+    match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
+        Ok(hash) => {
+            named_args.insert("account", hash.0);
+        }
+        Err(e) => eprintln!("Error @pair::mint - {}", e)
+    }
+    let balance0: U256 = call_contract(_token0, "balance_of", named_args.clone());
+    let balance1: U256 = call_contract(_token1, "balance_of", named_args.clone());
     // getting the pair's tokens' reserves
     let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
     let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");

@@ -11,6 +11,7 @@ contract = { package = "casper-contract", version="1.2" }
 types = { package = "casper-types", version="1.2" }
 solid = "0.1.5"
 web3 = "0.14.0"
+elliptic-curve = "0.8.3"
 
 [lib]
 name = "uniswap_erc20"

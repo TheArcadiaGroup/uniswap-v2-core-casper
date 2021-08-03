@@ -11,7 +11,7 @@ use alloc::{
 use core::convert::TryInto;
 use std::ops::{Add, Sub};
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
-use web3::signing::keccak256;
+use web3::signing::{keccak256, recover};
 use contract::{
     contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
@@ -22,6 +22,7 @@ use types::{
     contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
     runtime_args, CLType, CLTyped, CLValue, Group, Parameter, RuntimeArgs, URef, U256,
 };
+use elliptic_curve;
 
 #[cfg(not(feature = "no_name"))]
 #[no_mangle]
@@ -113,6 +114,12 @@ pub extern "C" fn transfer_from() {
     let recipient: AccountHash = runtime::get_named_arg("recipient");
     let amount: U256 = runtime::get_named_arg("amount");
     _transfer_from(owner, recipient, amount);
+}
+
+#[cfg(not(feature = "no_permit"))]
+#[no_mangle]
+pub extern "C" fn permit() {
+    
 }
 
 #[no_mangle]
