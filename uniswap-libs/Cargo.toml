@@ -10,6 +10,12 @@ edition = "2018"
 [dependencies]
 types = { package = "casper-types", version="1.2" }
 solid = "0.1.5"
+ewasm_api = "0.10.0"
+libsecp256k1 = "0.6.0"
+tiny-keccak = { version = "2.0.2", features = ["keccak"] }
+
+[dev-dependencies]
+rustc-hex = "2.1.0"
 
 [lib]
 name = "uniswap_libs"

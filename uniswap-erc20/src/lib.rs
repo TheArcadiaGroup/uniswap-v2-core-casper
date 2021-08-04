@@ -17,12 +17,39 @@ use contract::{
     unwrap_or_revert::UnwrapOrRevert,
 };
 use types::{
+    ApiError,
     account::AccountHash,
     bytesrepr::{FromBytes, ToBytes},
     contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
     runtime_args, CLType, CLTyped, CLValue, Group, Parameter, RuntimeArgs, URef, U256,
 };
 use elliptic_curve;
+use ethabi::{encode, Token, ethereum_types};
+use uniswap_libs::ecrecover;
+
+pub enum Error {
+    UniswapV2ZeroAddress = 0,
+    UniswapV2PairExists = 1,
+    UniswapV2Forbidden = 2,
+    UniswapV2IdenticalAddresses = 3,
+    UniswapV2Overflow = 4,
+    UniswapV2InsufficientLiquidityMinted = 5,
+    UniswapV2InsufficientLiquidityBurned = 6,
+    UniswapV2Locked = 7,
+    UniswapV2InsufficientInputAmount = 8,
+    UniswapV2InsufficientOutputAmount = 9,
+    UniswapV2InsufficientLiquidity = 10,
+    UniswapV2InvalidTo = 11,
+    UniswapV2K = 12,
+    UniswapV2Expired = 13,
+    UniswapV2InvalidSignature = 14
+}
+
+impl From<Error> for ApiError {
+    fn from(error: Error) -> ApiError {
+        ApiError::User(error as u16)
+    }
+}
 
 #[cfg(not(feature = "no_name"))]
 #[no_mangle]
@@ -97,6 +124,7 @@ pub extern "C" fn approve() {
     let spender: AccountHash = runtime::get_named_arg("spender");
     let amount: U256 = runtime::get_named_arg("amount");
     _approve(runtime::get_caller(), spender, amount);
+    ret(true)
 }
 
 #[cfg(not(feature = "no_transfer"))]
@@ -105,6 +133,7 @@ pub extern "C" fn transfer() {
     let recipient: AccountHash = runtime::get_named_arg("recipient");
     let amount: U256 = runtime::get_named_arg("amount");
     _transfer(runtime::get_caller(), recipient, amount);
+    ret(true)
 }
 
 #[cfg(not(feature = "no_transfer_from"))]
@@ -114,6 +143,7 @@ pub extern "C" fn transfer_from() {
     let recipient: AccountHash = runtime::get_named_arg("recipient");
     let amount: U256 = runtime::get_named_arg("amount");
     _transfer_from(owner, recipient, amount);
+    ret(true)
 }
 
 #[cfg(not(feature = "no_permit"))]
@@ -129,20 +159,20 @@ pub extern "C" fn call() {
     let token_decimals: u8 = 18;
     let token_total_supply: U256 = runtime::get_named_arg("token_total_supply");
     let permit_typehash: Bytes32 = Bytes32(keccak256(b"Permit(AccountHash owner,AccountHash spender,U256 value,U256 nonce,U256 deadline)"));
-
+    // -----TODO: set the domain_separator-----
     let mut entry_points = EntryPoints::new();
     entry_points.add_entry_point(endpoint("name", vec![], CLType::String));
     entry_points.add_entry_point(endpoint("symbol", vec![], CLType::String));
     entry_points.add_entry_point(endpoint("decimals", vec![], CLType::U8));
     entry_points.add_entry_point(endpoint("total_supply", vec![], CLType::U32));
-    entry_points.add_entry_point(endpoint("permit_typehash", vec![], CLType::Any));
+    entry_points.add_entry_point(endpoint("permit_typehash", vec![], CLType::ByteArray(32)));
     entry_points.add_entry_point(endpoint(
         "transfer",
         vec![
             Parameter::new("recipient", AccountHash::cl_type()),
             Parameter::new("amount", CLType::U256),
         ],
-        CLType::Unit,
+        CLType::Bool,
     ));
     entry_points.add_entry_point(endpoint(
         "balance_of",
@@ -163,7 +193,7 @@ pub extern "C" fn call() {
             Parameter::new("spender", AccountHash::cl_type()),
             Parameter::new("amount", CLType::U256),
         ],
-        CLType::Unit,
+        CLType::Bool,
     ));
     entry_points.add_entry_point(endpoint(
         "transfer_from",
@@ -171,6 +201,19 @@ pub extern "C" fn call() {
             Parameter::new("owner", AccountHash::cl_type()),
             Parameter::new("recipient", AccountHash::cl_type()),
             Parameter::new("amount", CLType::U256),
+        ],
+        CLType::Bool,
+    ));
+    entry_points.add_entry_point(endpoint(
+        "permit",
+        vec![
+            Parameter::new("owner", AccountHash::cl_type()),
+            Parameter::new("spender", AccountHash::cl_type()),
+            Parameter::new("amount", CLType::U256),
+            Parameter::new("deadline", CLType::U256),
+            Parameter::new("v", CLType::U8),
+            Parameter::new("r", CLType::ByteArray(32)),
+            Parameter::new("s", CLType::ByteArray(32)),
         ],
         CLType::Unit,
     ));
