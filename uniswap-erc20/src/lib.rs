@@ -149,7 +149,40 @@ pub extern "C" fn transfer_from() {
 #[cfg(not(feature = "no_permit"))]
 #[no_mangle]
 pub extern "C" fn permit() {
-    
+    let owner: AccountHash = runtime::get_named_arg("owner");
+    let spender: AccountHash = runtime::get_named_arg("spender");
+    let value: U256 = runtime::get_named_arg("value");
+    let deadline: U256 = runtime::get_named_arg("deadline");
+    let v: u8 = runtime::get_named_arg("v");
+    let r: [u8; 32] = runtime::get_named_arg("r");
+    let s: [u8; 32] = runtime::get_named_arg("s");
+    if (deadline < U256::from(&runtime::get_blocktime().to_bytes().unwrap()[..])) {
+        runtime::revert(Error::UniswapV2Expired);
+    }
+    let mut owner_address = [0u8; 20];
+    owner_address.copy_from_slice(&owner.as_bytes());
+    let mut spender_address = [0u8; 20];
+    spender_address.copy_from_slice(&spender.as_bytes());
+    let new_nonce: U256 = get_key::<U256>(&nonce_key(&owner)) + U256::from(1);
+    set_key(&nonce_key(&owner), new_nonce);
+    let param: [u8; 32] = keccak256(&mut encode(&[Token::Array(vec![
+        Token::Bytes(get_key::<[u8; 32]>("permit_typehash").to_bytes().unwrap()),
+        Token::Address(owner_address.into()),
+        Token::Address(spender_address.into()),
+        Token::Uint(convert_to_ethabi_u256(value)),
+        Token::Uint(convert_to_ethabi_u256(new_nonce)),
+        Token::Uint(convert_to_ethabi_u256(deadline)),
+    ])]));
+    let digest: &[u8; 32] = &keccak256(&mut encode(&[Token::Array(vec![
+        Token::String("\x19\x01".to_string()),
+        Token::Bytes(get_key::<[u8; 32]>("domain_separator").to_bytes().unwrap()),
+        Token::Bytes(param.to_bytes().unwrap())
+    ])]));
+    let recoveredAccountHash = ecrecover::ecrecover_sol(digest, v, r, s);
+    if (recoveredAccountHash == AccountHash::new([0u8; 32]) || recoveredAccountHash != owner) {
+        runtime::revert(Error::UniswapV2InvalidSignature);
+    }
+    _approve(owner, spender, value);
 }
 
 #[no_mangle]
@@ -330,4 +363,13 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
         EntryPointAccess::Public,
         EntryPointType::Contract,
     )
+}
+
+fn convert_to_ethabi_u256(u256_value: U256) -> ethabi::ethereum_types::U256 {
+    ethabi::ethereum_types::U256([
+        u64::from_be_bytes(u256_value.to_bytes().unwrap()[0..7].try_into().unwrap()),
+        u64::from_be_bytes(u256_value.to_bytes().unwrap()[8..15].try_into().unwrap()),
+        u64::from_be_bytes(u256_value.to_bytes().unwrap()[16..23].try_into().unwrap()),
+        u64::from_be_bytes(u256_value.to_bytes().unwrap()[24..32].try_into().unwrap())
+    ])
 }
