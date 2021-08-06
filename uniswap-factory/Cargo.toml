@@ -12,13 +12,13 @@ contract = { package = "casper-contract", version="1.2" }
 types = { package = "casper-types", version="1.2" }
 solid = "0.1.5"
 create2 = "0.0.2"
-ethcontract-generate = "0.13.1"
 parity-hash = "1.2.2"
 evm = "0.28.0"
 ethabi = "14.1.0"
 primitive-types = "0.6.1"
 ethereum_abi = "0.3.0"
-web3 = "0.14.0"
+renvm-sig = "0.1.1"
+getrandom = { version = "0.2", features = ["js"] }
 
 [lib]
 name = "uniswap_factory"

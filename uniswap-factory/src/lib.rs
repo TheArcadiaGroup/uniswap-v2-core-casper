@@ -14,11 +14,10 @@ use ethereum_abi::Abi;
 use parity_hash::H256;
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
 use std::{convert::TryFrom, ops::Add};
-// for contract creation code
-use ethcontract_generate::ContractBuilder;
 // contains evm opcodes like load, add..
 use evm::Opcode;
-use web3::signing::keccak256;
+//use web3::signing::keccak256;
+use renvm_sig::keccak256;
 // I couldn't find encodePacked which is utilized in Solidity
 // the difference is that encode makes calls to contracts and params are padded to 32 bytes
 // encodePacked is more space-efficient and doesn't call contracts
@@ -139,6 +138,10 @@ extern "C" fn createPair() {
     named_keys.insert(
         "total_supply".to_string(),
         storage::new_uref(pair_total_supply).into(),
+    );
+    named_keys.insert(
+        "permit_typehash".to_string(),
+        storage::new_uref(permit_typehash.0).into(),
     );
     named_keys.insert(
         balance_key(&runtime::get_caller()),

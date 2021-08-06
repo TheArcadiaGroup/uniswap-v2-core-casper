@@ -11,7 +11,8 @@ use alloc::{
 use core::convert::TryInto;
 use std::ops::{Add, Sub};
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
-use web3::signing::{keccak256, recover};
+//use web3::signing::{keccak256, recover};
+use renvm_sig::keccak256;
 use contract::{
     contract_api::{runtime, storage},
     unwrap_or_revert::UnwrapOrRevert,
@@ -261,6 +262,10 @@ pub extern "C" fn call() {
     named_keys.insert(
         "total_supply".to_string(),
         storage::new_uref(token_total_supply).into(),
+    );
+    named_keys.insert(
+        "permit_typehash".to_string(),
+        storage::new_uref(permit_typehash.0).into(),
     );
     named_keys.insert(
         balance_key(&runtime::get_caller()),

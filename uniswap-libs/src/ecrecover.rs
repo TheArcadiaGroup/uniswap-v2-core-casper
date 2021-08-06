@@ -24,11 +24,6 @@ fn pop_u64(barry: &[u8]) -> &[u8; 64] {
     barry.try_into().expect("slice with incorrect length")
 }
 
-// converts &[u8] => &[u8; 32]
-fn pop_u32(barry: &[u8]) -> &[u8; 32] {
-    barry.try_into().expect("slice with incorrect length")
-}
-
 pub fn keccak(input: &[u8]) -> [u8; 32] {
     let mut hash = [0u8; 32];
     let mut keccak256 = Keccak::v256();
@@ -53,7 +48,7 @@ pub fn ecrecover_sol(msg: &[u8; 32], v: u8, r: [u8; 32], s: [u8; 32]) -> Account
         return AccountHash::new([0u8; 32]);
     }
     // 2 - build the signature by combining r and s
-    let mut signature = *pop_u64(&[r, s].concat()[..]);
+    let signature = *pop_u64(&[r, s].concat()[..]);
     // 3 - begin the recovery process
     let message = Message::parse(msg);
     let rec_id = RecoveryId::parse(v).unwrap();

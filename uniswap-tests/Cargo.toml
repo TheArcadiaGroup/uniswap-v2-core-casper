@@ -1,8 +1,17 @@
 [package]
 name = "uniswap-tests"
+description = "Uniswap v2 core contracts tests written in Rust"
 version = "0.1.0"
+authors = ["Jihed CHALGHAF <chalghaf.jihed@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+casper-contract = "1.2.0"
+casper-types = "1.2.0"
+casper-engine-test-support = "1.2.0"
+getrandom = { version = "0.2", features = ["js"] }
+
+[features]
+default = ["casper-contract/std", "casper-types/std", "casper-contract/test-support"]

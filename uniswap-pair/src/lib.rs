@@ -172,7 +172,8 @@ extern "C" fn getReserves() {
 
 /// Function: mint(to: ContractHash) -> liquidity: U256
 ///
-/// Purpose: creates pool tokens.
+/// # Purpose
+/// creates pool tokens.
 /// # Arguments
 /// * `to` - An ContractHash that holds the pool's contract hash.
 /// # Returns
@@ -194,7 +195,7 @@ extern "C" fn mint() {
     let mut named_args = RuntimeArgs::new();
     match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
         Ok(hash) => {
-            named_args.insert("account", hash.0);
+            named_args.insert("account", hash.0).unwrap();
         }
         Err(e) => eprintln!("Error @pair::mint - {}", e)
     }
@@ -258,7 +259,8 @@ extern "C" fn mint() {
 
 /// Function: burn(to: AccountHash) -> (amount0: U256, amount1: U256)
 ///
-/// Purpose: destroys pool tokens.
+/// # Purpose
+/// destroys pool tokens.
 /// # Arguments
 /// * `to` - An AccountHash that holds the liquidity provider's account hash.
 /// # Returns
@@ -285,7 +287,7 @@ extern "C" fn burn() {
     let mut named_args = RuntimeArgs::new();
     match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
         Ok(hash) => {
-            named_args.insert("account", hash.0);
+            named_args.insert("account", hash.0).unwrap();
         }
         Err(e) => eprintln!("Error @pair::burn - {}", e)
     }
@@ -334,7 +336,8 @@ extern "C" fn burn() {
 
 /// Function: swap(amount0_out: U256, amount1_out: U256, to: AccountHash, data: Bytes)
 ///
-/// Purpose: swaps tokens. For regular swaps, data.length must be 0. Also see Flash Swaps.
+/// # Purpose
+/// swaps tokens. For regular swaps, data.length must be 0. Also see Flash Swaps.
 /// # Arguments
 /// * `amount0_out` - the first token's amount transfered from the pool to the provider.
 /// * `amount1_out` - the second token's amount transfered from the pool to the provider.
@@ -353,7 +356,7 @@ extern "C" fn swap() {
     let amount0_out: U256 = runtime::get_named_arg("amount0_out");
     let amount1_out: U256 = runtime::get_named_arg("amount1_out");
     let to: AccountHash = runtime::get_named_arg("to");
-    let data: Bytes = runtime::get_named_arg("data");
+    //let data: Bytes = runtime::get_named_arg("data");
     if (amount0_out <= U256::from(0) && amount1_out <= U256::from(0)) {
         // free the lock
         set_key("unlocked", U256::from(1));
@@ -393,7 +396,7 @@ extern "C" fn swap() {
                         let mut named_args = RuntimeArgs::new();
                         match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
                             Ok(hash) => {
-                                named_args.insert("account", hash.0);
+                                named_args.insert("account", hash.0).unwrap();
                             }
                             Err(e) => eprintln!("Error @pair::swap - {}", e)
                         }
@@ -438,7 +441,8 @@ extern "C" fn swap() {
 
 /// Function: skim(to: ContractHash)
 ///
-/// Purpose: force balances to match reserves.
+/// # Purpose
+/// forces balances to match reserves.
 /// # Arguments
 /// * `to` - An ContractHash that holds the pool's contract hash.
 #[no_mangle]
@@ -457,7 +461,7 @@ extern "C" fn skim() {
     let mut named_args = RuntimeArgs::new();
     match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
         Ok(hash) => {
-            named_args.insert("account", hash.0);
+            named_args.insert("account", hash.0).unwrap();
         }
         Err(e) => eprintln!("Error @pair::skim - {}", e)
     }
@@ -484,7 +488,8 @@ extern "C" fn skim() {
 
 /// Function: sync()
 ///
-/// Purpose: force reserves to match balances.
+/// # Purpose 
+/// forces reserves to match balances.
 #[no_mangle]
 extern "C" fn sync() {
     // alternative for the lock() access modifier in Solidity
@@ -500,7 +505,7 @@ extern "C" fn sync() {
     let mut named_args = RuntimeArgs::new();
     match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
         Ok(hash) => {
-            named_args.insert("account", hash.0);
+            named_args.insert("account", hash.0).unwrap();
         }
         Err(e) => eprintln!("Error @pair::mint - {}", e)
     }

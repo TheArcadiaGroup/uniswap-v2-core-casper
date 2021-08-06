@@ -10,10 +10,11 @@ edition = "2018"
 contract = { package = "casper-contract", version="1.2" }
 types = { package = "casper-types", version="1.2" }
 solid = "0.1.5"
-web3 = "0.14.0"
+renvm-sig = "0.1.1"
 elliptic-curve = "0.8.3"
 ethabi = "14.1.0"
 uniswap-libs = { path = "../uniswap-libs" }
+getrandom = { version = "0.2", features = ["js"] }
 
 [lib]
 name = "uniswap_erc20"
