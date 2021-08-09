@@ -26,7 +26,7 @@ use types::{
 };
 use elliptic_curve;
 use ethabi::{encode, Token, ethereum_types};
-use uniswap_libs::ecrecover;
+use uniswap_libs::{ecrecover, converters::to_ethabi_u256};
 
 pub enum Error {
     UniswapV2ZeroAddress = 0,
@@ -170,9 +170,9 @@ pub extern "C" fn permit() {
         Token::Bytes(get_key::<[u8; 32]>("permit_typehash").to_bytes().unwrap()),
         Token::Address(owner_address.into()),
         Token::Address(spender_address.into()),
-        Token::Uint(convert_to_ethabi_u256(value)),
-        Token::Uint(convert_to_ethabi_u256(new_nonce)),
-        Token::Uint(convert_to_ethabi_u256(deadline)),
+        Token::Uint(to_ethabi_u256(value)),
+        Token::Uint(to_ethabi_u256(new_nonce)),
+        Token::Uint(to_ethabi_u256(deadline)),
     ])]));
     let digest: &[u8; 32] = &keccak256(&mut encode(&[Token::Array(vec![
         Token::String("\x19\x01".to_string()),
@@ -368,13 +368,4 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
         EntryPointAccess::Public,
         EntryPointType::Contract,
     )
-}
-
-fn convert_to_ethabi_u256(u256_value: U256) -> ethabi::ethereum_types::U256 {
-    ethabi::ethereum_types::U256([
-        u64::from_be_bytes(u256_value.to_bytes().unwrap()[0..7].try_into().unwrap()),
-        u64::from_be_bytes(u256_value.to_bytes().unwrap()[8..15].try_into().unwrap()),
-        u64::from_be_bytes(u256_value.to_bytes().unwrap()[16..23].try_into().unwrap()),
-        u64::from_be_bytes(u256_value.to_bytes().unwrap()[24..32].try_into().unwrap())
-    ])
 }

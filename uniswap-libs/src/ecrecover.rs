@@ -5,6 +5,7 @@
 extern crate libsecp256k1;
 extern crate tiny_keccak;
 extern crate ewasm_api;
+use crate::converters::set_size_64;
 use libsecp256k1::{recover, Message, RecoveryId, Signature, Error::InvalidSignature};
 use types::{AsymmetricType, PublicKey, account::AccountHash, bytesrepr::FromBytes};
 use std::{cmp::min, convert::TryInto};
@@ -18,11 +19,6 @@ const COORD_OFFSET: usize = REC_ID_OFFSET + REC_ID_LENGTH;
 const COORD_LENGTH: usize = 32;
 const SIG_OFFSET: usize = COORD_OFFSET + COORD_LENGTH;
 const SIG_LENGTH: usize = 32;
-
-// converts &[u8] => &[u8; 64]
-fn pop_u64(barry: &[u8]) -> &[u8; 64] {
-    barry.try_into().expect("slice with incorrect length")
-}
 
 pub fn keccak(input: &[u8]) -> [u8; 32] {
     let mut hash = [0u8; 32];
@@ -48,7 +44,7 @@ pub fn ecrecover_sol(msg: &[u8; 32], v: u8, r: [u8; 32], s: [u8; 32]) -> Account
         return AccountHash::new([0u8; 32]);
     }
     // 2 - build the signature by combining r and s
-    let signature = *pop_u64(&[r, s].concat()[..]);
+    let signature = *set_size_64(&[r, s].concat()[..]);
     // 3 - begin the recovery process
     let message = Message::parse(msg);
     let rec_id = RecoveryId::parse(v).unwrap();

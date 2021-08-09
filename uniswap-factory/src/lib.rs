@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 
 extern crate alloc;
+use uniswap_libs::converters::set_size_4;
 
 use alloc::{
     collections::{BTreeMap, BTreeSet},
@@ -158,7 +159,7 @@ extern "C" fn createPair() {
     );
     named_keys.insert(
         "selector".to_string(), 
-        storage::new_uref(*pop(&keccak256("transfer(AccountHash, U256)".as_bytes())[..])).into()
+        storage::new_uref(*set_size_4(&keccak256("transfer(AccountHash, U256)".as_bytes())[..])).into()
     );
     named_keys.insert(
         "factory".to_string(), 
@@ -371,10 +372,6 @@ fn endpoint(name: &str, param: Vec<Parameter>, ret: CLType) -> EntryPoint {
     )
 }
 
-// converts &[u8] => &[u8; 4]
-fn pop(barry: &[u8]) -> &[u8; 4] {
-    barry.try_into().expect("slice with incorrect length")
-}
 // helper functions for the createPair function
 fn balance_key(account: &AccountHash) -> String {
     format!("balances_{}", account)

@@ -1,4 +1,4 @@
-use types::{ U256 };
+use types::U256;
 //use integer_sqrt;
 
 #[allow(dead_code)]
@@ -22,4 +22,28 @@ fn min(x: U256, y: U256) -> U256 {
 /// * the `U256` square root of the input.
 fn sqrt(x: U256) -> U256 {
     return x.integer_sqrt();
+}
+
+#[cfg(test)]
+mod tests {
+
+    use types::U256;
+    use super::*;
+    
+    #[test]
+    fn min_test() {
+        let input_1 = U256::from(0);
+        let input_2 = U256::from(1);
+        let expected = U256::from(0);
+        let output = min(input_1, input_2);
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn sqrt_test() {
+        let input = U256::from(4);
+        let expected = U256::from(2);
+        let output = sqrt(input);
+        assert_eq!(expected, output);
+    }
 }

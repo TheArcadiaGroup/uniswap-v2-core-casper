@@ -2371,6 +2371,7 @@ dependencies = [
  "primitive-types 0.6.2",
  "renvm-sig",
  "solid",
+ "uniswap-libs",
 ]
 
 [[package]]
@@ -2378,6 +2379,7 @@ name = "uniswap-libs"
 version = "0.1.0"
 dependencies = [
  "casper-types",
+ "ethabi",
  "ewasm_api",
  "libsecp256k1 0.6.0",
  "rustc-hex",

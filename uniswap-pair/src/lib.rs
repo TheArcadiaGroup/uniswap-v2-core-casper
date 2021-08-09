@@ -20,7 +20,7 @@ use ethabi::{encode, ethereum_types::U128};
 
 use contract::{contract_api::{runtime::{self, call_contract, get_blocktime, get_named_arg, put_key}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
 use types::{ApiError, BlockTime, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
-pub use uniswap_libs::uq112x112;
+pub use uniswap_libs::{uq112x112, converters::{set_size_14, set_size_16}};
 
 #[repr(u16)]
 pub enum Error {
@@ -545,7 +545,7 @@ fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint11
         None => eprintln!("Cannot divide by zero @pair::_update")
     }
     let timeElapsed: u32 = blockTimestamp - get_key::<u32>("blockTimestampLast");
-    if (timeElapsed > u32::MIN && u128::from_be_bytes(*pop_u128(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(*pop_u128(&(_reserve1.encode())[..])) != u128::MIN) {
+    if (timeElapsed > u32::MIN && u128::from_be_bytes(*set_size_16(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(*set_size_16(&(_reserve1.encode())[..])) != u128::MIN) {
         let mut price0CumulativeLast: U256 = get_key::<U256>("price0CumulativeLast");
         match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve1), &_reserve0)).encode()[..]) {
             Ok(res) => price0CumulativeLast += res.0,
@@ -559,8 +559,8 @@ fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint11
         }
         set_key::<U256>("price1CumulativeLast", price1CumulativeLast);
     }
-    set_key::<[u8; 14]>("reserve0", *pop_u112(&(balance0.as_u128().encode())[..]));
-    set_key::<[u8; 14]>("reserve1", *pop_u112(&(balance1.as_u128().encode())[..]));
+    set_key::<[u8; 14]>("reserve0", *set_size_14(&(balance0.as_u128().encode())[..]));
+    set_key::<[u8; 14]>("reserve1", *set_size_14(&(balance1.as_u128().encode())[..]));
     set_key::<u32>("blockTimestampLast", blockTimestamp);
 }
 
@@ -651,16 +651,6 @@ fn set_key<T: ToBytes + CLTyped>(name: &str, value: T) {
             runtime::put_key(name, key);
         }
     }
-}
-
-// helper function to convert &[u8] to &[u8; 16]
-fn pop_u128(barry: &[u8]) -> &[u8; 16] {
-    barry.try_into().expect("slice with incorrect length")
-}
-
-// helper function to convert &[u8] to &[u8; 14]
-fn pop_u112(barry: &[u8]) -> &[u8; 14] {
-    barry.try_into().expect("slice with incorrect length")
 }
 
 // ***** START: unsiwap-erc20 keys' getters *****

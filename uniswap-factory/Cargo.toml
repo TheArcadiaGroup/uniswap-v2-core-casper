@@ -18,6 +18,7 @@ ethabi = "14.1.0"
 primitive-types = "0.6.1"
 ethereum_abi = "0.3.0"
 renvm-sig = "0.1.1"
+uniswap-libs = { path = "../uniswap-libs" }
 getrandom = { version = "0.2", features = ["js"] }
 
 [lib]
