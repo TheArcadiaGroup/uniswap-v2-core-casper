@@ -10,7 +10,6 @@ use solid::{encode::Encode, int::Uint112};
 use types::U256;
 
 use crate::converters::set_size_28;
-
 // Uint224 is not a primitive type, so we need to define it here
 // which enables us to implement the Mul and Div traits to access their functions.
 #[derive(Clone)]
@@ -19,26 +18,22 @@ pub struct Uint224(pub [u8; 28]);
 impl Mul for Uint224 {
     type Output = Uint224;
     fn mul(self, rhs: Uint224) -> Uint224 {
-        let mut res: [u8; 28] = [0u8; 28];
-        for i in 0..self.0.len() {
-            res[i] = self.0[i] * rhs.0[i];
-        }
-        Uint224(res)
+        // println!("self = {}", U256::from_big_endian(&(self.0)[..]));
+        // println!("rhs = {}", U256::from_big_endian(&(rhs.0)[..]));
+        // println!("2^112 = {}", 2u128.pow(112));
+        let product = U256::from_big_endian(&(self.0)[..]) * U256::from_big_endian(&(rhs.0)[..]);
+        let mut res = [0u8; 32];
+        product.to_big_endian(&mut res);
+        Uint224(set_size_28(&res[..]))
     }
 }
 impl Div for Uint224 {
     type Output = Uint224;
     fn div(self, rhs: Uint224) -> Uint224 {
-        let mut res: [u8; 28] = [0u8; 28];
-        for i in 0..self.0.len() {
-            if rhs.0[i] != 0 {
-                res[i] = self.0[i] / rhs.0[i];
-            }
-            else {
-                res[i] = self.0[i];
-            }
-        }
-        Uint224(res)
+        let division = U256::from_big_endian(&(self.0)[..]) / U256::from_big_endian(&(rhs.0)[..]);
+        let mut res = [0u8; 32];
+        division.to_big_endian(&mut res);
+        Uint224(set_size_28(&res[..]))
     }
 }
 impl Encode for Uint224 {
@@ -59,12 +54,13 @@ impl Encode for Uint224 {
 /// * `UQ112x112` - the u224 constant.
 fn get_q112() -> Uint224 {
     let mut v = [0u8; 32];
-    (U256::from(2).checked_pow(U256::from(112))).unwrap().to_little_endian(&mut v);
+    //(U256::from(2).checked_pow(U256::from(112))).unwrap().to_big_endian(&mut v);
+    (U256::from(2u128.pow(112))).to_big_endian(&mut v);
     return Uint224([
-        v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-        v[8], v[9], v[10], v[11], v[12], v[13], v[14], v[15],
-        v[16], v[17], v[18], v[19], v[20], v[21], v[22], v[23],
-        v[24], v[25], v[26], v[27]
+        v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12],
+        v[13], v[14], v[15], v[16], v[17], v[18], v[19], v[20],
+        v[21], v[22], v[23], v[24], v[25], v[26], v[27], v[28],
+        v[29], v[30], v[31]
     ]);
 }
 
@@ -94,8 +90,8 @@ pub fn encode(y: &Uint112) -> Uint224 {
 pub fn uqdiv(x: &Uint224, y: &Uint112) -> Uint224 {
     //let e = &(y.encode())[..];
     let e = y.0;
-    let enc_array = &[e, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]].concat()[..];
-    return (*x).clone().div(Uint224(*set_size_28(enc_array)));
+    let enc_array = &[[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], e].concat()[..];
+    return (*x).clone().div(Uint224(set_size_28(enc_array)));
 }
 
 #[cfg(test)]
@@ -106,37 +102,62 @@ mod tests {
     
     #[test]
     fn q112() {
-        let expected = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let expected = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
         let output = get_q112().0;
         assert_eq!(expected, output);
-        assert_eq!(U256::from(5192296858534827628530496329220096u128), U256::from_little_endian(&expected[..]));
+        assert_eq!(U256::from(5192296858534827628530496329220096u128), U256::from_big_endian(&expected[..]));
     }
 
     #[test]
-    fn encode_test() {
+    fn encode_one() {
+        let input = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+        //println!("input int = {}", U256::from_big_endian(&(input.0)[..]));
         //let mut v = [0u8; 32];
-        // U256::from(1).to_little_endian(&mut v);
-        // let input = Uint112([
-        //     v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7],
-        //     v[8], v[9], v[10], v[11], v[12], v[13]
-        // ]);
-        let input = Uint112([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        println!("input = {:?}", input.0);
-        //U256::from(5192296858534827628530496329220096u128).to_little_endian(&mut v);
-        let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        println!("expected = {:?}", expected.0);
+        //U256::from(5192296858534827628530496329220096u128).to_big_endian(&mut v);
+        //println!("q112 = {:?}", v);
+        let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        //println!("expected = {:?}", expected.0);
         let output = encode(&input);
         assert_eq!(expected.0, output.0);
     }
 
     #[test]
-    fn uqdiv_test() {
+    fn encode_zero() {
+        let input = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let output = encode(&input);
+        assert_eq!(expected.0, output.0);
+    }
+
+    #[test]
+    fn uqdiv_small_dividend() {
         // let mut v = [0u8; 32];
-        // U256::from(2).to_little_endian(&mut v);
-        let x = Uint224([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        let y = Uint112([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        let expected = Uint224([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        // U256::from(2).to_big_endian(&mut v);
+        let x = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let y = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+        let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         let output = uqdiv(&x, &y);
         assert_eq!(expected.0, output.0);
+    }
+
+    #[test]
+    fn uqdiv_large_dividend() {
+        // let mut v = [0u8; 32];
+        // U256::from(2).to_big_endian(&mut v);
+        let x = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+        let y = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+        let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+        let output = uqdiv(&x, &y);
+        assert_eq!(expected.0, output.0);
+    }
+
+    #[test]
+    #[should_panic]
+    fn uqdiv_divide_by_zero() {
+        // let mut v = [0u8; 32];
+        // U256::from(2).to_big_endian(&mut v);
+        let x = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+        let y = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        uqdiv(&x, &y);
     }
 }

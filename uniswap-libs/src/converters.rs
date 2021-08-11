@@ -7,56 +7,82 @@ use types::U256;
 // **** Uint112 => Uint224 steps: *****
 // 1 - convert Uint112 => Vec[u8] with encode()
 // 2 - convert Vec[u8] => &[u8] using & and [..]
-// 3 - call set_size_28() fct to convert &[u8] => &[u8; 28]
+// 3 - call set_size_28() fct to convert &[u8] => [u8; 28]
 // 4 - Uint224() converts [u8; 28] => Uint224
 
 /// # Purpose
-/// converts an `&[u8]` to a `&[u8; 4]`.
+/// converts an `&[u8]` to a `[u8; 4]`.
 /// # Arguments
 /// * `primitive` - the `&[u8]` value.
 /// # Returns
-/// * the `&[u8; 4]` equivalent of the given input.
-pub fn set_size_4(primitive: &[u8]) -> &[u8; 4] {
+/// * the `[u8; 4]` equivalent of the given input.
+pub fn set_size_4(primitive: &[u8]) -> [u8; 4] {
+    let mut x = primitive.to_vec();
+    x.reverse();
+    x.truncate(4);
+    x.reverse();
+    x.as_slice().try_into().expect("slice with incorrect length")
+}
+
+/// # Purpose
+/// converts an `&[u8]` to a `[u8; 14]`.
+/// # Arguments
+/// * `primitive` - the `&[u8]` value.
+/// # Returns
+/// * the `[u8; 14]` equivalent of the given input.
+pub fn set_size_14(primitive: &[u8]) -> [u8; 14] {
+    let mut x = primitive.to_vec();
+    x.reverse();
+    x.truncate(14);
+    x.reverse();
+    x.as_slice().try_into().expect("slice with incorrect length")
+}
+
+/// # Purpose
+/// converts an `&[u8]` to a `[u8; 16]`.
+/// # Arguments
+/// * `primitive` - the `&[u8]` value.
+/// # Returns
+/// * the `[u8; 16]` equivalent of the given input.
+pub fn set_size_16(primitive: &[u8]) -> [u8; 16] {
+    let mut x = primitive.to_vec();
+    x.reverse();
+    x.truncate(16);
+    x.reverse();
+    x.as_slice().try_into().expect("slice with incorrect length")
+}
+
+/// # Purpose
+/// converts an `&[u8]` to a `[u8; 28]`.
+/// # Arguments
+/// * `primitive` - the `&[u8]` value.
+/// # Returns
+/// * the `[u8; 28]` equivalent of the given input.
+pub fn set_size_28(primitive: &[u8]) -> [u8; 28] {
+    let mut x = primitive.to_vec();
+    x.reverse();
+    x.truncate(28);
+    x.reverse();
+    x.as_slice().try_into().expect("slice with incorrect length")
+}
+
+/// # Purpose
+/// converts an `&[u8]` to a `[u8; 32]`.
+/// # Arguments
+/// * `primitive` - the `&[u8]` value.
+/// # Returns
+/// * the `[u8; 32]` equivalent of the given input.
+pub fn set_size_32(primitive: &[u8]) -> [u8; 32] {
     primitive.try_into().expect("slice with incorrect length")
 }
 
 /// # Purpose
-/// converts an `&[u8]` to a `&[u8; 14]`.
+/// converts an `&[u8]` to a `[u8; 64]`.
 /// # Arguments
 /// * `primitive` - the `&[u8]` value.
 /// # Returns
-/// * the `&[u8; 14]` equivalent of the given input.
-pub fn set_size_14(primitive: &[u8]) -> &[u8; 14] {
-    primitive.try_into().expect("slice with incorrect length")
-}
-
-/// # Purpose
-/// converts an `&[u8]` to a `&[u8; 16]`.
-/// # Arguments
-/// * `primitive` - the `&[u8]` value.
-/// # Returns
-/// * the `&[u8; 16]` equivalent of the given input.
-pub fn set_size_16(primitive: &[u8]) -> &[u8; 16] {
-    primitive.try_into().expect("slice with incorrect length")
-}
-
-/// # Purpose
-/// converts an `&[u8]` to a `&[u8; 28]`.
-/// # Arguments
-/// * `primitive` - the `&[u8]` value.
-/// # Returns
-/// * the `&[u8; 28]` equivalent of the given input.
-pub fn set_size_28(primitive: &[u8]) -> &[u8; 28] {
-    primitive.try_into().expect("slice with incorrect length")
-}
-
-/// # Purpose
-/// converts an `&[u8]` to a `&[u8; 64]`.
-/// # Arguments
-/// * `primitive` - the `&[u8]` value.
-/// # Returns
-/// * the `&[u8; 64]` equivalent of the given input.
-pub fn set_size_64(primitive: &[u8]) -> &[u8; 64] {
+/// * the `[u8; 64]` equivalent of the given input.
+pub fn set_size_64(primitive: &[u8]) -> [u8; 64] {
     primitive.try_into().expect("slice with incorrect length")
 }
 
@@ -102,7 +128,7 @@ mod tests {
 
     #[test]
     fn size_16() {
-        let input = &vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16][..];
+        let input = &vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16][..];
         let expected = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let output = set_size_16(input);
         assert_eq!(expected, output);
@@ -119,6 +145,20 @@ mod tests {
             18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28
         ];
         let output = set_size_28(input);
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn size_32() {
+        let input = &vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+            18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+        ][..];
+        let expected = vec![
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+            18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+        ];
+        let output = set_size_32(input);
         assert_eq!(expected, output);
     }
 

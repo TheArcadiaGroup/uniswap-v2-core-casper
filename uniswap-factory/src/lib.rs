@@ -159,7 +159,7 @@ extern "C" fn createPair() {
     );
     named_keys.insert(
         "selector".to_string(), 
-        storage::new_uref(*set_size_4(&keccak256("transfer(AccountHash, U256)".as_bytes())[..])).into()
+        storage::new_uref(set_size_4(&keccak256("transfer(AccountHash, U256)".as_bytes())[..])).into()
     );
     named_keys.insert(
         "factory".to_string(), 

@@ -44,18 +44,19 @@ pub fn ecrecover_sol(msg: &[u8; 32], v: u8, r: [u8; 32], s: [u8; 32]) -> Account
         return AccountHash::new([0u8; 32]);
     }
     // 2 - build the signature by combining r and s
-    let signature = *set_size_64(&[r, s].concat()[..]);
+    let signature = set_size_64(&[r, s].concat()[..]);
     // 3 - begin the recovery process
     let message = Message::parse(msg);
     let rec_id = RecoveryId::parse(v).unwrap();
     match Signature::parse_standard(&signature) {
         Ok(sig) => {
             let key = recover(&message, &sig, &rec_id).unwrap();
-            let ret = key.serialize();
-            let ret = keccak(&ret[1..65]);
-            let mut output = vec![0u8; 12];
-            output.extend_from_slice(&ret[12..32]);
-            let pubkey = PublicKey::secp256k1_from_bytes(output.clone()).unwrap();
+            // let ret = key.serialize();
+            // let ret = keccak(&ret[1..65]);
+            // let mut output = vec![0u8; 12];
+            // output.extend_from_slice(&ret[12..32]);
+            // let pubkey = PublicKey::secp256k1_from_bytes(output.clone()).unwrap();
+            let pubkey = PublicKey::secp256k1_from_bytes(key.serialize()).unwrap();
             let account = AccountHash::from(&pubkey);
             return account;
         }
@@ -143,8 +144,12 @@ pub extern "C" fn main() {
 #[cfg(test)]
 mod tests {
     extern crate rustc_hex;
+    use crate::converters::set_size_32;
+
     use super::*;
+    use libsecp256k1::{PublicKey, SecretKey, curve::Scalar, sign};
     use rustc_hex::FromHex;
+    use types;
 
     #[test]
     fn geth_test() {
@@ -277,6 +282,19 @@ mod tests {
         ];
         let output = ecrecover(&input);
         let expected = Err(InvalidSignature);
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn ecrecover_solidty() {
+        let msg = Message(Scalar([0u32; 8]));
+        let seckey = SecretKey::parse(&[1; 32]).unwrap();
+        let (signature, recid) = sign(&msg, &seckey);
+        let pubkey = PublicKey::from_secret_key(&seckey);
+        let expected = AccountHash::from(&types::PublicKey::secp256k1_from_bytes(pubkey.serialize()).unwrap());
+        let sig: [u8; 64] = signature.serialize();
+        let (r, s) = sig.split_at(32);
+        let output = ecrecover_sol(&[0u8; 32], recid.serialize(), set_size_32(r), set_size_32(s));
         assert_eq!(expected, output);
     }
 }

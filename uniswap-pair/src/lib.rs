@@ -210,47 +210,39 @@ extern "C" fn mint() {
     let amount0: U256;
     let amount1: U256;
     // convert _reserve0 from [u8; 14] to U256
-    match U256::from_bytes(&Uint112(_reserve0).encode()[..]) {
-        Ok(res_0) => {
-            amount0 = balance0.sub(res_0.0);
-            // convert _reserve1 from [u8; 14] to U256
-            match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
-                Ok(res_1) => {
-                    amount1 = balance1.sub(res_1.0);
-                    let fee_on: bool = _mintFee(Uint112(_reserve0), Uint112(_reserve1));
-                    // return value -> liquidity
-                    let mut liquidity: U256;
-                    let _total_supply: U256 = get_key::<U256>("total_supply");
-                    if (_total_supply == U256::from(0)) {
-                        liquidity = (amount0.mul(amount1)).integer_sqrt().sub(get_key::<U256>("minimum_liquidity"));
-                        //_mint(AccountHash([0u8; 32]), get_key::<U256>("minimum_liquidity"))
-                    }
-                    else {
-                        liquidity = (amount0.mul(_total_supply)).div(res_0.0);
-                        liquidity = liquidity.min((amount1.mul(_total_supply)).div(res_1.0));
-                    }
-                    if (liquidity <= U256::from(0)) {
-                        // free the lock
-                        set_key("unlocked", U256::from(1));
-                        runtime::revert(Error::UniswapV2InsufficientLiquidityMinted);
-                    }
-                    match AccountHash::from_bytes(to.as_bytes()) {
-                        Ok(res) => {
-                            _mint(res.0, liquidity);
-                            _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
-                            if (fee_on) {
-                                set_key::<U256>("kLast", res_0.0.mul(res_1.0));
-                            }
-                            // free the lock
-                            set_key("unlocked", U256::from(1));
-                            ret(liquidity);
-                        },
-                        Err(e) => eprintln!("Error @pair::mint - {}", e)
-                    }
-                }
-                Err(e) => eprintln!("Error @pair::mint - {}", e)
+    let reserve0 = U256::from_big_endian(&_reserve0[..]);
+    amount0 = balance0.sub(reserve0);
+    // convert _reserve1 from [u8; 14] to U256
+    let reserve1 = U256::from_big_endian(&_reserve1[..]);
+    amount1 = balance1.sub(reserve1);
+    let fee_on: bool = _mintFee(Uint112(_reserve0), Uint112(_reserve1));
+    // return value -> liquidity
+    let mut liquidity: U256;
+    let _total_supply: U256 = get_key::<U256>("total_supply");
+    if (_total_supply == U256::from(0)) {
+        liquidity = (amount0.mul(amount1)).integer_sqrt().sub(get_key::<U256>("minimum_liquidity"));
+        //_mint(AccountHash([0u8; 32]), get_key::<U256>("minimum_liquidity"))
+    }
+    else {
+        liquidity = (amount0.mul(_total_supply)).div(reserve0);
+        liquidity = liquidity.min((amount1.mul(_total_supply)).div(reserve1));
+    }
+    if (liquidity <= U256::from(0)) {
+        // free the lock
+        set_key("unlocked", U256::from(1));
+        runtime::revert(Error::UniswapV2InsufficientLiquidityMinted);
+    }
+    match AccountHash::from_bytes(to.as_bytes()) {
+        Ok(res) => {
+            _mint(res.0, liquidity);
+            _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
+            if (fee_on) {
+                set_key::<U256>("kLast", reserve0.mul(reserve1));
             }
-        }
+            // free the lock
+            set_key("unlocked", U256::from(1));
+            ret(liquidity);
+        },
         Err(e) => eprintln!("Error @pair::mint - {}", e)
     }
     // free the lock
@@ -317,17 +309,9 @@ extern "C" fn burn() {
     // update the pool's reserves
     _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
     if (fee_on) {
-        match U256::from_bytes(&Uint112(_reserve0).encode()[..]) {
-            Ok(res_0) => {
-                match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
-                    Ok(res_1) => {
-                        set_key::<U256>("kLast", res_0.0.mul(res_1.0));
-                    }
-                    Err(e) => eprintln!("Error @pair::burn - {}", e)
-                }
-            }
-            Err(e) => eprintln!("Error @pair::burn - {}", e)
-        }
+        let reserve0 = U256::from_big_endian(&_reserve0[..]);
+        let reserve1 = U256::from_big_endian(&_reserve1[..]);
+        set_key::<U256>("kLast", reserve0.mul(reserve1));
     }
     // free the lock
     set_key("unlocked", U256::from(1));
@@ -365,76 +349,68 @@ extern "C" fn swap() {
     // getting the pair's tokens' reserves
     let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
     let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
-    match U256::from_bytes(&Uint112(_reserve0).encode()[..]) {
-        Ok(res_O) => {
-            match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
-                Ok(res_1) => {
-                    if (amount0_out >= res_O.0 || amount1_out >= res_1.0) {
-                        // free the lock
-                        set_key("unlocked", U256::from(1));
-                        runtime::revert(Error::UniswapV2InsufficientLiquidity);
-                    }
-                    let balance0: U256;
-                    let balance1: U256;
-                    { // scope for _token{0,1}, avoids stack too deep errors
-                        let _token0: ContractHash = get_key::<ContractHash>("token0");
-                        let _token1: ContractHash = get_key::<ContractHash>("token1");
-                        if (to.value() == _token0.value() || to.value() == _token1.value()) {
-                            // free the lock
-                            set_key("unlocked", U256::from(1));
-                            runtime::revert(Error::UniswapV2InvalidTo);
-                        }
-                        if (amount0_out > U256::from(0)) {
-                            _safeTransfer(_token0, to, amount0_out); // optimistically transfer tokens
-                        }
-                        if (amount1_out > U256::from(0)) {
-                            _safeTransfer(_token1, to, amount1_out); // optimistically transfer tokens
-                        }
-                        // ---call to uniswapV2Call fct which is not implemented in the original UniswapV2---
-                        // get current contract hash
-                        let current_contract_hash: ContractHash = get_key::<ContractHash>(&get_key::<String>("name"));
-                        let mut named_args = RuntimeArgs::new();
-                        match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
-                            Ok(hash) => {
-                                named_args.insert("account", hash.0).unwrap();
-                            }
-                            Err(e) => eprintln!("Error @pair::swap - {}", e)
-                        }
-                        // get latest balances after the transfers
-                        balance0 = call_contract(_token0, "balance_of", named_args.clone());
-                        balance1 = call_contract(_token1, "balance_of", named_args.clone());
-                    }
-                    let amountO_in: U256 = if (balance0 > res_O.0 - amount0_out) {
-                        balance0 - (res_O.0 - amount0_out)
-                    } else {
-                        U256::from(0)
-                    };
-                    let amount1_in: U256 = if (balance1 > res_1.0 - amount1_out) {
-                        balance1 - (res_1.0 - amount1_out)
-                    } else {
-                        U256::from(0)
-                    };
-                    if (amountO_in <= U256::from(0) && amount1_in <= U256::from(0)) {
-                        // free the lock
-                        set_key("unlocked", U256::from(1));
-                        runtime::revert(Error::UniswapV2InsufficientInputAmount);
-                    }
-                    { // scope for reserve{0,1}Adjusted, avoids stack too deep errors
-                        let balance0_adjusted: U256 = balance0.mul(U256::from(1000)).sub(amountO_in.mul(U256::from(3)));
-                        let balance1_adjusted: U256 = balance1.mul(U256::from(1000)).sub(amount1_in.mul(U256::from(3)));
-                        if (balance0_adjusted.mul(balance1_adjusted) < res_O.0.mul(res_1.0).mul(U256::from(1000i32.pow(2)))) {
-                            // free the lock
-                            set_key("unlocked", U256::from(1));
-                            runtime::revert(Error::UniswapV2K);
-                        }
-                    }
-                    _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
-                }
-                Err(e) => eprintln!("Error @pair::swap - {}", e)
-            }
-        }
-        Err(e) => eprintln!("Error @pair::swap - {}", e)
+    let reserve0 = U256::from_big_endian(&_reserve0[..]);
+    let reserve1 = U256::from_big_endian(&_reserve1[..]);
+    if (amount0_out >= reserve0 || amount1_out >= reserve1) {
+        // free the lock
+        set_key("unlocked", U256::from(1));
+        runtime::revert(Error::UniswapV2InsufficientLiquidity);
     }
+    let balance0: U256;
+    let balance1: U256;
+    { // scope for _token{0,1}, avoids stack too deep errors
+        let _token0: ContractHash = get_key::<ContractHash>("token0");
+        let _token1: ContractHash = get_key::<ContractHash>("token1");
+        if (to.value() == _token0.value() || to.value() == _token1.value()) {
+            // free the lock
+            set_key("unlocked", U256::from(1));
+            runtime::revert(Error::UniswapV2InvalidTo);
+        }
+        if (amount0_out > U256::from(0)) {
+            _safeTransfer(_token0, to, amount0_out); // optimistically transfer tokens
+        }
+        if (amount1_out > U256::from(0)) {
+            _safeTransfer(_token1, to, amount1_out); // optimistically transfer tokens
+        }
+        // ---call to uniswapV2Call fct which is not implemented in the original UniswapV2---
+        // get current contract hash
+        let current_contract_hash: ContractHash = get_key::<ContractHash>(&get_key::<String>("name"));
+        let mut named_args = RuntimeArgs::new();
+        match AccountHash::from_bytes(current_contract_hash.as_bytes()) {
+            Ok(hash) => {
+                named_args.insert("account", hash.0).unwrap();
+            }
+            Err(e) => eprintln!("Error @pair::swap - {}", e)
+        }
+        // get latest balances after the transfers
+        balance0 = call_contract(_token0, "balance_of", named_args.clone());
+        balance1 = call_contract(_token1, "balance_of", named_args.clone());
+    }
+    let amountO_in: U256 = if (balance0 > reserve0 - amount0_out) {
+        balance0 - (reserve0 - amount0_out)
+    } else {
+        U256::from(0)
+    };
+    let amount1_in: U256 = if (balance1 > reserve1 - amount1_out) {
+        balance1 - (reserve1 - amount1_out)
+    } else {
+        U256::from(0)
+    };
+    if (amountO_in <= U256::from(0) && amount1_in <= U256::from(0)) {
+        // free the lock
+        set_key("unlocked", U256::from(1));
+        runtime::revert(Error::UniswapV2InsufficientInputAmount);
+    }
+    { // scope for reserve{0,1}Adjusted, avoids stack too deep errors
+        let balance0_adjusted: U256 = balance0.mul(U256::from(1000)).sub(amountO_in.mul(U256::from(3)));
+        let balance1_adjusted: U256 = balance1.mul(U256::from(1000)).sub(amount1_in.mul(U256::from(3)));
+        if (balance0_adjusted.mul(balance1_adjusted) < reserve0.mul(reserve1).mul(U256::from(1000i32.pow(2)))) {
+            // free the lock
+            set_key("unlocked", U256::from(1));
+            runtime::revert(Error::UniswapV2K);
+        }
+    }
+    _update(balance0, balance1, Uint112(_reserve0), Uint112(_reserve1));
     // free the lock
     set_key("unlocked", U256::from(1));
 }
@@ -470,9 +446,9 @@ extern "C" fn skim() {
     // getting the pair's tokens' reserves
     let _reserve0: [u8; 14] = get_key::<[u8; 14]>("reserve0");
     let _reserve1: [u8; 14] = get_key::<[u8; 14]>("reserve1");
-    match U256::from_bytes(&Uint112(_reserve0).encode()[..]) {
+    match U256::from_bytes(&_reserve0[..]) {
         Ok(res0) => {
-            match U256::from_bytes(&Uint112(_reserve1).encode()[..]) {
+            match U256::from_bytes(&_reserve1[..]) {
                 Ok(res1) => {
                     _safeTransfer(_token0, to, balance0.sub(res0.0));
                     _safeTransfer(_token1, to, balance1.sub(res1.0));
@@ -545,22 +521,22 @@ fn _update(balance0: U256, balance1: U256, _reserve0: Uint112, _reserve1: Uint11
         None => eprintln!("Cannot divide by zero @pair::_update")
     }
     let timeElapsed: u32 = blockTimestamp - get_key::<u32>("blockTimestampLast");
-    if (timeElapsed > u32::MIN && u128::from_be_bytes(*set_size_16(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(*set_size_16(&(_reserve1.encode())[..])) != u128::MIN) {
+    if (timeElapsed > u32::MIN && u128::from_be_bytes(set_size_16(&(_reserve0.encode())[..])) != u128::MIN && u128::from_be_bytes(set_size_16(&(_reserve1.encode())[..])) != u128::MIN) {
         let mut price0CumulativeLast: U256 = get_key::<U256>("price0CumulativeLast");
-        match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve1), &_reserve0)).encode()[..]) {
+        match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve1), &_reserve0).0)[..]) {
             Ok(res) => price0CumulativeLast += res.0,
             Err(e) => eprintln!("Error @pair::_update - {}", e)
         }
         set_key::<U256>("price0CumulativeLast", price0CumulativeLast);
         let mut price1CumulativeLast: U256 = get_key::<U256>("price1CumulativeLast");
-        match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve0), &_reserve1)).encode()[..]) {
+        match U256::from_bytes(&(uq112x112::uqdiv(&uq112x112::encode(&_reserve0), &_reserve1).0)[..]) {
             Ok(res) => price1CumulativeLast += res.0,
             Err(e) => eprintln!("Error @pair::_update - {}", e)
         }
         set_key::<U256>("price1CumulativeLast", price1CumulativeLast);
     }
-    set_key::<[u8; 14]>("reserve0", *set_size_14(&(balance0.as_u128().encode())[..]));
-    set_key::<[u8; 14]>("reserve1", *set_size_14(&(balance1.as_u128().encode())[..]));
+    set_key::<[u8; 14]>("reserve0", set_size_14(&(balance0.as_u128().encode())[..]));
+    set_key::<[u8; 14]>("reserve1", set_size_14(&(balance1.as_u128().encode())[..]));
     set_key::<u32>("blockTimestampLast", blockTimestamp);
 }
 
@@ -573,31 +549,23 @@ fn _mintFee(_reserve0: Uint112, _reserve1: Uint112) -> bool {
         if (_kLast != U256::from(0)) {
             let rootK: U256;
             // convert _reserve0 from Uint112 to U256
-            match U256::from_bytes(&(_reserve0.encode())[..]) {
-                Ok(result_1) => {
-                    // convert _reserve1 from Uint112 to U256
-                    match U256::from_bytes(&(_reserve0.encode())[..]) {
-                        Ok(result_2) => {
-                            match result_1.0.checked_mul(result_2.0) {
-                                Some(x) => {
-                                    rootK = x.integer_sqrt();
-                                    let rootKLast: U256 = _kLast.integer_sqrt();
-                                    if (rootK > rootKLast) {
-                                        let numerator: U256 = get_key::<U256>("total_supply").mul(rootK.sub(rootKLast));
-                                        let denominator: U256 = rootK.mul(U256::from(5)).add(rootKLast);
-                                        let liquidity: U256 = numerator.div(denominator);
-                                        if (liquidity > U256::from(0)) {
-                                            _mint(feeTo, liquidity)
-                                        }
-                                    }
-                                }
-                                None => eprintln!("Multiplication using 'checked_mul' failed due to Overflow")
-                            }
+            let reserve0 = U256::from_big_endian(&(_reserve0.0)[..]);
+            // convert _reserve1 from Uint112 to U256
+            let reserve1 = U256::from_big_endian(&(_reserve1.0)[..]);
+            match reserve0.checked_mul(reserve1) {
+                Some(x) => {
+                    rootK = x.integer_sqrt();
+                    let rootKLast: U256 = _kLast.integer_sqrt();
+                    if (rootK > rootKLast) {
+                        let numerator: U256 = get_key::<U256>("total_supply").mul(rootK.sub(rootKLast));
+                        let denominator: U256 = rootK.mul(U256::from(5)).add(rootKLast);
+                        let liquidity: U256 = numerator.div(denominator);
+                        if (liquidity > U256::from(0)) {
+                            _mint(feeTo, liquidity)
                         }
-                        Err(e) => eprintln!("Error @pair::_mintFee - {}", e)
                     }
-                },
-                Err(e) => eprintln!("Error @pair::_mintFee - {}", e)
+                }
+                None => eprintln!("Multiplication using 'checked_mul' failed due to Overflow")
             }
         }
     }
