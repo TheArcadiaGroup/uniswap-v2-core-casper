@@ -1,11 +1,14 @@
 use std::{env, fs, path::PathBuf, process::Command};
 
 // Build system
-const CONTRACT_ROOT: [&str; 1] = ["../erc20"];
-const CONTRACT_CARGO_TOML: [&str; 1] = ["../erc20/Cargo.toml"];
-const CONTRACT_LIB_RS: [&str; 1] = ["../erc20/src/lib.rs"];
-const BUILD_ARGS: [[&str; 4]; 1] = [["build", "--release", "-p", "erc20"]];
-const WASM_FILENAME: [&str; 1] = ["erc20.wasm"];
+const CONTRACT_ROOT: [&str; 2] = ["../erc20", "../uniswap-erc20"];
+const CONTRACT_CARGO_TOML: [&str; 2] = ["../erc20/Cargo.toml", "../uniswap-erc20/Cargo.toml"];
+const CONTRACT_LIB_RS: [&str; 2] = ["../erc20/src/lib.rs", "../uniswap-erc20/src/lib.rs"];
+const BUILD_ARGS: [[&str; 4]; 2] = [
+    ["build", "--release", "-p", "erc20"],
+    ["build", "--release", "-p", "uniswap-erc20"]
+];
+const WASM_FILENAME: [&str; 2] = ["erc20.wasm", "uniswap_erc20.wasm"];
 const ORIGINAL_WASM_DIR: &str = "../target/wasm32-unknown-unknown/release";
 const NEW_WASM_DIR: &str = "wasm";
 

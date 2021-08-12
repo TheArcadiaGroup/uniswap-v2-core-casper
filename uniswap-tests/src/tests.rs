@@ -1,4 +1,5 @@
 use crate::erc20::{token_cfg, Sender, Token};
+use crate::uniswap_erc20::{token_cfg as UNI_token_cfg, Sender as UNI_Sender, Token as UNI_Token};
 
 #[test]
 fn test_erc20_deploy() {
@@ -61,4 +62,18 @@ fn test_erc20_transfer_from_too_much() {
     let amount = token_cfg::total_supply().checked_add(1.into()).unwrap();
     let mut t = Token::deployed();
     t.transfer_from(t.ali, t.joe, amount, Sender(t.bob));
+}
+
+#[test]
+fn test_uniswap_erc20_deploy() {
+    let t = UNI_Token::deployed();
+    assert_eq!(t.name(), UNI_token_cfg::NAME);
+    assert_eq!(t.symbol(), UNI_token_cfg::SYMBOL);
+    assert_eq!(t.decimals(), UNI_token_cfg::DECIMALS);
+    assert_eq!(t.balance_of(t.ali), UNI_token_cfg::total_supply());
+    assert_eq!(t.balance_of(t.bob), 0.into());
+    assert_eq!(t.allowance(t.ali, t.ali), 0.into());
+    assert_eq!(t.allowance(t.ali, t.bob), 0.into());
+    assert_eq!(t.allowance(t.bob, t.ali), 0.into());
+    assert_eq!(t.allowance(t.bob, t.bob), 0.into());
 }

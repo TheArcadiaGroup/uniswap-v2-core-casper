@@ -8,7 +8,7 @@ use alloc::{
     collections::{BTreeMap, BTreeSet},
     string::String,
 };
-use uniswap_erc20::balance_of;
+//use uniswap_erc20::balance_of;
 use core::convert::TryInto;
 use parity_hash::H256;
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, encode::Encode, int::{Uint112, Uint224}};
@@ -16,7 +16,7 @@ use std::{convert::TryFrom, ops::{Add, Div, Mul, Sub}};
 // I couldn't find encodePacked which is utilized in Solidity
 // the difference is that encode makes calls to contracts and params are padded to 32 bytes
 // encodePacked is more space-efficient and doesn't call contracts
-use ethabi::{encode, ethereum_types::U128};
+//use ethabi::{encode, ethereum_types::U128};
 
 use contract::{contract_api::{runtime::{self, call_contract, get_blocktime, get_named_arg, put_key}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
 use types::{ApiError, BlockTime, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};

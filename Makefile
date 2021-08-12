@@ -3,14 +3,14 @@ prepare:
 
 build-contract:
 	cargo build --release -p erc20 --target wasm32-unknown-unknown
-	#cargo build --release -p uniswap-erc20 --target wasm32-unknown-unknown
+	cargo build --release -p uniswap-erc20 --target wasm32-unknown-unknown
 
 test-only:
 	cargo test -p uniswap-tests
 
 copy-wasm-file-to-test:
 	cp target/wasm32-unknown-unknown/release/erc20.wasm uniswap-tests/wasm
-	#cp target/wasm32-unknown-unknown/release/uniswap-erc20.wasm uniswap-tests/wasm
+	cp target/wasm32-unknown-unknown/release/uniswap_erc20.wasm uniswap-tests/wasm
 
 test: build-contract copy-wasm-file-to-test test-only
 
@@ -26,4 +26,4 @@ lint: clippy
 clean:
 	cargo clean
 	rm -rf uniswap-tests/wasm/erc20.wasm
-	#rm -rf uniswap-tests/wasm/uniswap-erc20.wasm
+	rm -rf uniswap-tests/wasm/uniswap_erc20.wasm

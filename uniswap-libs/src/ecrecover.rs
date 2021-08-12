@@ -4,7 +4,7 @@
 #[cfg(test)]
 extern crate libsecp256k1;
 extern crate tiny_keccak;
-extern crate ewasm_api;
+//extern crate ewasm_api;
 use crate::converters::set_size_64;
 use libsecp256k1::{recover, Message, RecoveryId, Signature, Error::InvalidSignature};
 use types::{AsymmetricType, PublicKey, account::AccountHash, bytesrepr::FromBytes};
@@ -116,30 +116,30 @@ pub fn ecrecover(input: &[u8]) -> Result<Vec<u8>, libsecp256k1::Error> {
     }
 }
 
-#[cfg(not(test))]
-#[no_mangle]
-pub extern "C" fn main() {
-    use std::cmp;
+// #[cfg(not(test))]
+// #[no_mangle]
+// pub extern "C" fn main() {
+//     use std::cmp;
 
-    const G_EC_RECOVER_GAS: u64 = 3000;
+//     const G_EC_RECOVER_GAS: u64 = 3000;
 
-    ewasm_api::consume_gas(G_EC_RECOVER_GAS);
+//     ewasm_api::consume_gas(G_EC_RECOVER_GAS);
 
-    // Make sure that the input is 128 bytes
-    let mut input = vec![0u8; HASH_LENGTH + REC_ID_LENGTH + COORD_LENGTH + SIG_LENGTH];
-    let common_length = cmp::min(input.len(), ewasm_api::calldata_size());
-    ewasm_api::unsafe_calldata_copy(
-        HASH_OFFSET as usize,
-        common_length,
-        &mut input[..common_length],
-    );
+//     // Make sure that the input is 128 bytes
+//     let mut input = vec![0u8; HASH_LENGTH + REC_ID_LENGTH + COORD_LENGTH + SIG_LENGTH];
+//     let common_length = cmp::min(input.len(), ewasm_api::calldata_size());
+//     ewasm_api::unsafe_calldata_copy(
+//         HASH_OFFSET as usize,
+//         common_length,
+//         &mut input[..common_length],
+//     );
 
-    match ecrecover(&input) {
-        Ok(ret) => ewasm_api::finish_data(&ret[..]),
-        // NOTE: this should not result in an error, but return empty data.
-        Err(_) => ewasm_api::finish(),
-    }
-}
+//     match ecrecover(&input) {
+//         Ok(ret) => ewasm_api::finish_data(&ret[..]),
+//         // NOTE: this should not result in an error, but return empty data.
+//         Err(_) => ewasm_api::finish(),
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

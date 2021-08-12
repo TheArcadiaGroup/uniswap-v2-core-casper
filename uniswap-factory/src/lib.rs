@@ -10,19 +10,15 @@ use alloc::{
     string::String,
 };
 use core::convert::TryInto;
-use create2;
-use ethereum_abi::Abi;
 use parity_hash::H256;
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
 use std::{convert::TryFrom, ops::Add};
 // contains evm opcodes like load, add..
-use evm::Opcode;
-//use web3::signing::keccak256;
+//use evm::Opcode;
 use renvm_sig::keccak256;
 // I couldn't find encodePacked which is utilized in Solidity
 // the difference is that encode makes calls to contracts and params are padded to 32 bytes
 // encodePacked is more space-efficient and doesn't call contracts
-use ethabi::{encode, ethereum_types::H160, Token};
 
 use contract::{contract_api::{runtime::{self, call_contract, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
 use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
