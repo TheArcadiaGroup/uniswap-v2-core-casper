@@ -1961,7 +1961,10 @@ dependencies = [
  "casper-engine-test-support",
  "casper-types",
  "getrandom 0.2.3",
+ "libsecp256k1 0.6.0",
+ "renvm-sig",
  "solid",
+ "uniswap-libs",
 ]
 
 [[package]]

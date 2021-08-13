@@ -118,7 +118,6 @@ pub extern "C" fn approve() {
     let spender: AccountHash = runtime::get_named_arg("spender");
     let amount: U256 = runtime::get_named_arg("amount");
     _approve(runtime::get_caller(), spender, amount);
-    ret(true)
 }
 
 #[cfg(not(feature = "no_transfer"))]
@@ -127,7 +126,6 @@ pub extern "C" fn transfer() {
     let recipient: AccountHash = runtime::get_named_arg("recipient");
     let amount: U256 = runtime::get_named_arg("amount");
     _transfer(runtime::get_caller(), recipient, amount);
-    ret(true)
 }
 
 #[cfg(not(feature = "no_transfer_from"))]
@@ -137,7 +135,6 @@ pub extern "C" fn transfer_from() {
     let recipient: AccountHash = runtime::get_named_arg("recipient");
     let amount: U256 = runtime::get_named_arg("amount");
     _transfer_from(owner, recipient, amount);
-    ret(true)
 }
 
 #[cfg(not(feature = "no_permit"))]
@@ -153,20 +150,12 @@ pub extern "C" fn permit() {
     if (deadline < U256::from(&runtime::get_blocktime().to_bytes().unwrap()[..])) {
         runtime::revert(Error::UniswapV2Expired);
     }
-    let mut owner_address = [0u8; 20];
-    owner_address.copy_from_slice(&owner.as_bytes());
-    let mut spender_address = [0u8; 20];
-    spender_address.copy_from_slice(&spender.as_bytes());
+    // let mut owner_address = [0u8; 32];
+    // owner_address.copy_from_slice(&owner.as_bytes());
+    // let mut spender_address = [0u8; 32];
+    // spender_address.copy_from_slice(&spender.as_bytes());
     let new_nonce: U256 = get_key::<U256>(&nonce_key(&owner)) + U256::from(1);
     set_key(&nonce_key(&owner), new_nonce);
-    // let param: [u8; 32] = keccak256(&mut encode(&[Token::Array(vec![
-    //     Token::Bytes(get_key::<[u8; 32]>("permit_typehash").to_bytes().unwrap()),
-    //     Token::Address(owner_address.into()),
-    //     Token::Address(spender_address.into()),
-    //     Token::Uint(to_ethabi_u256(value)),
-    //     Token::Uint(to_ethabi_u256(new_nonce)),
-    //     Token::Uint(to_ethabi_u256(deadline)),
-    // ])]));
     let mut value_bytes = [0u8; 32];
     value.to_big_endian(&mut value_bytes);
     let mut new_nonce_bytes = [0u8; 32];
@@ -175,23 +164,19 @@ pub extern "C" fn permit() {
     deadline.to_big_endian(&mut deadline_bytes);
     let param = keccak256(&[
         get_key::<[u8; 32]>("permit_typehash").to_vec(),
-        owner_address.to_vec(),
-        spender_address.to_vec(),
+        owner.value().to_vec(),
+        spender.value().to_vec(),
         value_bytes.to_vec(),
         new_nonce_bytes.to_vec(),
         deadline_bytes.to_vec()
     ].concat()[..]);
-    // let digest: &[u8; 32] = &keccak256(&mut encode(&[Token::Array(vec![
-    //     Token::String("\x19\x01".to_string()),
-    //     Token::Bytes(get_key::<[u8; 32]>("domain_separator").to_bytes().unwrap()),
-    //     Token::Bytes(param.to_bytes().unwrap())
-    // ])]));
-    let digest = &keccak256(&[
+    let digest = keccak256(&[
         "\x19\x01".as_bytes().to_vec(),
         get_key::<[u8; 32]>("domain_separator").to_vec(),
+        //[0u8; 32].to_vec(),
         param.to_vec()
     ].concat()[..]);
-    let recoveredAccountHash = ecrecover::ecrecover_sol(digest, v, r, s);
+    let recoveredAccountHash = ecrecover::ecrecover_sol(&digest, v, r, s);
     if (recoveredAccountHash == AccountHash::new([0u8; 32]) || recoveredAccountHash != owner) {
         runtime::revert(Error::UniswapV2InvalidSignature);
     }
@@ -215,14 +200,18 @@ pub extern "C" fn call() {
     entry_points.add_entry_point(endpoint("total_supply", vec![], CLType::U32));
     entry_points.add_entry_point(endpoint("permit_typehash", vec![], CLType::ByteArray(32)));
     entry_points.add_entry_point(endpoint("domain_separator", vec![], CLType::ByteArray(32)));
-    entry_points.add_entry_point(endpoint("nonces", vec![], CLType::U256));
+    entry_points.add_entry_point(endpoint(
+        "nonces",
+        vec![Parameter::new("account", AccountHash::cl_type())],
+        CLType::U256,
+    ));
     entry_points.add_entry_point(endpoint(
         "transfer",
         vec![
             Parameter::new("recipient", AccountHash::cl_type()),
             Parameter::new("amount", CLType::U256),
         ],
-        CLType::Bool,
+        CLType::Unit,
     ));
     entry_points.add_entry_point(endpoint(
         "balance_of",
@@ -243,7 +232,7 @@ pub extern "C" fn call() {
             Parameter::new("spender", AccountHash::cl_type()),
             Parameter::new("amount", CLType::U256),
         ],
-        CLType::Bool,
+        CLType::Unit,
     ));
     entry_points.add_entry_point(endpoint(
         "transfer_from",
@@ -252,14 +241,14 @@ pub extern "C" fn call() {
             Parameter::new("recipient", AccountHash::cl_type()),
             Parameter::new("amount", CLType::U256),
         ],
-        CLType::Bool,
+        CLType::Unit,
     ));
     entry_points.add_entry_point(endpoint(
         "permit",
         vec![
             Parameter::new("owner", AccountHash::cl_type()),
             Parameter::new("spender", AccountHash::cl_type()),
-            Parameter::new("amount", CLType::U256),
+            Parameter::new("value", CLType::U256),
             Parameter::new("deadline", CLType::U256),
             Parameter::new("v", CLType::U8),
             Parameter::new("r", CLType::ByteArray(32)),
@@ -293,7 +282,7 @@ pub extern "C" fn call() {
     );
     named_keys.insert(
         nonce_key(&runtime::get_caller()),
-        storage::new_uref(0).into(),
+        storage::new_uref(U256::from(0)).into(),
     );
 
     let (contract_hash, _) =
@@ -304,15 +293,8 @@ pub extern "C" fn call() {
 }
 
 fn _set_domain_separator(hash: ContractHash) {
-    let mut contract_address = [0u8; 20];
+    let mut contract_address = [0u8; 32];
     contract_address.copy_from_slice(&hash.as_bytes());
-    // let domain_separator: [u8; 32] = keccak256(&mut encode(&[Token::Array(vec![
-    //     Token::Bytes(keccak256(b"EIP712Domain(name: String,version: String,chainId: String,verifyingContract: ContractHash)").to_vec()),
-    //     Token::Bytes(keccak256(b"Uniswap V2").to_vec()),
-    //     Token::Bytes(keccak256(b"1").to_vec()),
-    //     Token::String("casper-test".to_string()),
-    //     Token::Address(contract_address.into())
-    // ])]));
     let param = &[
         keccak256(b"EIP712Domain(name: String,version: String,chainId: String,verifyingContract: ContractHash)").to_vec(),
         keccak256(b"Uniswap V2").to_vec(),

@@ -6,3 +6,6 @@ pub mod erc20;
 
 #[cfg(test)]
 pub mod uniswap_erc20;
+
+#[cfg(test)]
+pub mod utilities;

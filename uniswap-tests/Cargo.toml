@@ -13,6 +13,9 @@ casper-types = "1.2.0"
 casper-engine-test-support = "1.2.0"
 getrandom = { version = "0.2", features = ["js"] }
 solid = "0.1.5"
+renvm-sig = "0.1.1"
+libsecp256k1 = "0.6.0"
+uniswap-libs = { path = "../uniswap-libs" }
 
 [features]
 default = ["casper-contract/std", "casper-types/std", "casper-contract/test-support"]

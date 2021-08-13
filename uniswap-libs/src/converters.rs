@@ -102,6 +102,25 @@ pub fn set_size_64(primitive: &[u8]) -> [u8; 64] {
 //     ])
 // }
 
+/// # Purpose
+/// converts an `[u8; 32]` to a `[u32; 8]`.
+/// # Arguments
+/// * `v` - the `[u8; 32]` array.
+/// # Returns
+/// * the `[u32; 8]` equivalent of the given input.
+pub fn u8_32_to_u32_8(v: [u8; 32]) -> [u32; 8] {
+    [
+        u32::from_be_bytes([v[0], v[1], v[2], v[3]]),
+        u32::from_be_bytes([v[4], v[5], v[6], v[7]]),
+        u32::from_be_bytes([v[8], v[9], v[10], v[11]]),
+        u32::from_be_bytes([v[12], v[13], v[14], v[15]]),
+        u32::from_be_bytes([v[16], v[17], v[18], v[19]]),
+        u32::from_be_bytes([v[20], v[21], v[22], v[23]]),
+        u32::from_be_bytes([v[24], v[25], v[26], v[27]]),
+        u32::from_be_bytes([v[28], v[29], v[30], v[31]])
+    ]
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -176,6 +195,27 @@ mod tests {
             63, 64
         ];
         let output = set_size_64(input);
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn u32_8() {
+        let v = [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+            18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+        ];
+        println!("input = {:?}", v);
+        let expected = [
+            u32::from_be_bytes([v[0], v[1], v[2], v[3]]),
+            u32::from_be_bytes([v[4], v[5], v[6], v[7]]),
+            u32::from_be_bytes([v[8], v[9], v[10], v[11]]),
+            u32::from_be_bytes([v[12], v[13], v[14], v[15]]),
+            u32::from_be_bytes([v[16], v[17], v[18], v[19]]),
+            u32::from_be_bytes([v[20], v[21], v[22], v[23]]),
+            u32::from_be_bytes([v[24], v[25], v[26], v[27]]),
+            u32::from_be_bytes([v[28], v[29], v[30], v[31]])
+        ];
+        let output = u8_32_to_u32_8(v);
         assert_eq!(expected, output);
     }
 

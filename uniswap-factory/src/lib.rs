@@ -146,7 +146,7 @@ extern "C" fn createPair() {
     );
     named_keys.insert(
         nonce_key(&runtime::get_caller()),
-        storage::new_uref(0).into(),
+        storage::new_uref(U256::from(0)).into(),
     );
     // ***** End of the uniswap-erc20 crate named keys *****
     named_keys.insert(

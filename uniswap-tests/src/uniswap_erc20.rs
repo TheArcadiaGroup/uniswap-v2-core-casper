@@ -1,8 +1,8 @@
 use casper_engine_test_support::{Code, Hash, SessionBuilder, TestContext, TestContextBuilder};
-use casper_types::{
-    account::AccountHash, bytesrepr::FromBytes, runtime_args, AsymmetricType, CLTyped, PublicKey,
-    RuntimeArgs, U256, U512,
-};
+use casper_types::{AsymmetricType, CLTyped, PublicKey, RuntimeArgs, U256, U512, account::AccountHash, bytesrepr::FromBytes, runtime_args};
+use libsecp256k1::{SecretKey};
+//use uniswap_libs::converters::set_size_32;
+//use renvm_sig::keccak256;
 
 // contains methods that can simulate a real-world deployment (storing the contract in the blockchain)
 // and transactions to invoke the methods in the contract.
@@ -12,6 +12,14 @@ pub mod token_cfg {
     pub const NAME: &str = "Uniswap V2";
     pub const SYMBOL: &str = "UNI-V2";
     pub const DECIMALS: u8 = 18;
+    pub const PERMIT_TYPEHASH: [u8; 32] = [
+        196, 145, 155, 88, 31, 120, 34, 95, 56, 141, 115, 176,10, 228, 33, 29,
+        229, 113, 196, 78, 79, 126, 214, 110, 157, 225, 57, 117, 72, 198, 55, 2
+    ];
+    pub const DOMAIN_SEPARATOR: [u8; 32] = [
+        34, 166, 68, 188, 180, 157, 190, 242, 151, 250, 248, 18, 112, 111, 182,
+        149, 89, 117, 155, 63, 64, 214, 166, 171, 253, 34, 213, 211, 7, 31, 75, 245
+    ];
     pub fn total_supply() -> U256 {
         1_000.into()
     }
@@ -21,14 +29,19 @@ pub struct Sender(pub AccountHash);
 
 pub struct Token {
     context: TestContext,
+    pub ali_sec: SecretKey,
     pub ali: AccountHash,
     pub bob: AccountHash,
     pub joe: AccountHash,
 }
 
 impl Token {
-    pub fn deployed() -> Token {   
-        let ali = PublicKey::ed25519_from_bytes([3u8; 32]).unwrap();
+    pub fn deployed() -> Token {
+        let ali_seckey = SecretKey::parse(&[3u8; 32]).unwrap();
+        let pubkey = libsecp256k1::PublicKey::from_secret_key(&ali_seckey);
+        let ali = PublicKey::secp256k1_from_bytes(pubkey.serialize()).unwrap();
+        //let ali = PublicKey::ed25519_from_bytes(set_size_32(&pubkey.serialize()[..])).unwrap();
+        //let ali = PublicKey::ed25519_from_bytes([3u8; 32]).unwrap();
         let bob = PublicKey::ed25519_from_bytes([6u8; 32]).unwrap();
         let joe = PublicKey::ed25519_from_bytes([9u8; 32]).unwrap();
 
@@ -47,13 +60,14 @@ impl Token {
         context.run(session);
         Token {
             context,
+            ali_sec: ali_seckey,
             ali: ali.to_account_hash(),
             bob: bob.to_account_hash(),
             joe: joe.to_account_hash(),
         }
     }
 
-    fn contract_hash(&self) -> Hash {
+    pub fn contract_hash(&self) -> Hash {
         self.context
             .query(self.ali, &[format!("{}_hash", "UNI_V2")])
             .unwrap_or_else(|_| panic!("{} contract not found", token_cfg::NAME))
@@ -71,7 +85,7 @@ impl Token {
             Ok(maybe_value) => {
                 let value = maybe_value
                     .into_t()
-                    .unwrap_or_else(|_| panic!("{} is not expected type.", name));
+                    .unwrap_or_else(|_| panic!("{} is not the expected type.", name));
                 Some(value)
             }
         }
