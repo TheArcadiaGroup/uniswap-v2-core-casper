@@ -3,7 +3,7 @@ Uniswap V2 core written in Rust.
 
 ## Done
 - [x] Implemented the core contracts.
-- [x] Implemented unit tests for ERC20 and UniswapV2ERC20 contracts.
+- [x] Implemented unit tests for the UniswapV2ERC20 contract.
 - [x] Implemented unit tests for the required libraries.
 
 ## Todo
