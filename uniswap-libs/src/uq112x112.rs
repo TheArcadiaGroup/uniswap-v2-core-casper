@@ -18,9 +18,6 @@ pub struct Uint224(pub [u8; 28]);
 impl Mul for Uint224 {
     type Output = Uint224;
     fn mul(self, rhs: Uint224) -> Uint224 {
-        // println!("self = {}", U256::from_big_endian(&(self.0)[..]));
-        // println!("rhs = {}", U256::from_big_endian(&(rhs.0)[..]));
-        // println!("2^112 = {}", 2u128.pow(112));
         let product = U256::from_big_endian(&(self.0)[..]) * U256::from_big_endian(&(rhs.0)[..]);
         let mut res = [0u8; 32];
         product.to_big_endian(&mut res);
@@ -46,7 +43,6 @@ impl Encode for Uint224 {
 
 // can't mark Q112 as a constant since I won't be able to make the required calls
 // to get the Uint224 result that we desire, so I'll implement a getter function
-//const Q112: Uint224 = Uint224(*set_size_28(&((2 << 112 as u32).encode())[..]));
 
 /// # Purpose
 /// returns the UQ112x112 value.
@@ -54,7 +50,6 @@ impl Encode for Uint224 {
 /// * `UQ112x112` - the u224 constant.
 fn get_q112() -> Uint224 {
     let mut v = [0u8; 32];
-    //(U256::from(2).checked_pow(U256::from(112))).unwrap().to_big_endian(&mut v);
     (U256::from(2u128.pow(112))).to_big_endian(&mut v);
     return Uint224([
         v[4], v[5], v[6], v[7], v[8], v[9], v[10], v[11], v[12],
@@ -88,7 +83,6 @@ pub fn encode(y: &Uint112) -> Uint224 {
 /// # Returns
 /// * the `Uint224` division result of x by y.
 pub fn uqdiv(x: &Uint224, y: &Uint112) -> Uint224 {
-    //let e = &(y.encode())[..];
     let e = y.0;
     let enc_array = &[[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], e].concat()[..];
     return (*x).clone().div(Uint224(set_size_28(enc_array)));
@@ -111,12 +105,7 @@ mod tests {
     #[test]
     fn encode_one() {
         let input = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
-        //println!("input int = {}", U256::from_big_endian(&(input.0)[..]));
-        //let mut v = [0u8; 32];
-        //U256::from(5192296858534827628530496329220096u128).to_big_endian(&mut v);
-        //println!("q112 = {:?}", v);
         let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-        //println!("expected = {:?}", expected.0);
         let output = encode(&input);
         assert_eq!(expected.0, output.0);
     }
@@ -131,8 +120,6 @@ mod tests {
 
     #[test]
     fn uqdiv_small_dividend() {
-        // let mut v = [0u8; 32];
-        // U256::from(2).to_big_endian(&mut v);
         let x = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         let y = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
         let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 128, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -142,8 +129,6 @@ mod tests {
 
     #[test]
     fn uqdiv_large_dividend() {
-        // let mut v = [0u8; 32];
-        // U256::from(2).to_big_endian(&mut v);
         let x = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
         let y = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
         let expected = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
@@ -154,8 +139,6 @@ mod tests {
     #[test]
     #[should_panic]
     fn uqdiv_divide_by_zero() {
-        // let mut v = [0u8; 32];
-        // U256::from(2).to_big_endian(&mut v);
         let x = Uint224([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
         let y = Uint112([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
         uqdiv(&x, &y);

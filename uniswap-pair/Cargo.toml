@@ -11,25 +11,13 @@ edition = "2018"
 types = { package = "casper-types", version="1.2" }
 contract = { package = "casper-contract", version="1.2" }
 solid = "0.1.5"
-#ethabi = "14.1.0"
 parity-hash = "1.2.2"
 integer-sqrt = "0.1.5"
 uniswap-libs = { path = "../uniswap-libs" }
-#uniswap-erc20 = { path = "../uniswap-erc20" }
 
-# [[bin]]
-# name = "uniswap-pair"
-# path = "src/main.rs"
-# bench = false
-# doctest = false
-# test = false
 [lib]
 crate-type = ["cdylib"]
 name = "uniswap_pair"
 
 [features]
 default = ["contract/std", "types/std"]
-
-# enable overflow checks to make it behave like we used SafeMath in solidity
-[profile.release]
-overflow-checks = true

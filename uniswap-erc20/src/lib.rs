@@ -150,10 +150,6 @@ pub extern "C" fn permit() {
     if (deadline < U256::from(&runtime::get_blocktime().to_bytes().unwrap()[..])) {
         runtime::revert(Error::UniswapV2Expired);
     }
-    // let mut owner_address = [0u8; 32];
-    // owner_address.copy_from_slice(&owner.as_bytes());
-    // let mut spender_address = [0u8; 32];
-    // spender_address.copy_from_slice(&spender.as_bytes());
     let new_nonce: U256 = get_key::<U256>(&nonce_key(&owner)) + U256::from(1);
     set_key(&nonce_key(&owner), new_nonce);
     let mut value_bytes = [0u8; 32];
@@ -191,8 +187,9 @@ pub extern "C" fn call() {
     let token_total_supply: U256 = runtime::get_named_arg("token_total_supply");
     let permit_typehash  = keccak256(b"Permit(owner: AccountHash,spender: AccountHash,value: U256,nonce: U256,deadline: U256)");
     let domain_separator = [0u8; 32];
-    // -----TODO: set the domain_separator properly-----
+    // we are setting domain_separator properly using _set_domain_separator-----
     // needs to be done after deploying the contract since we need its hash
+    // current problem is that the value we're getting when querying domain_separator in tests remains [0u8; 32]
     let mut entry_points = EntryPoints::new();
     entry_points.add_entry_point(endpoint("name", vec![], CLType::String));
     entry_points.add_entry_point(endpoint("symbol", vec![], CLType::String));

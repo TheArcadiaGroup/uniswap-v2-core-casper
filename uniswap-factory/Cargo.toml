@@ -23,7 +23,3 @@ name = "uniswap_factory"
 
 [features]
 default = ["contract/std", "types/std"]
-
-# enable overflow checks to make it behave like we used SafeMath in solidity
-[profile.release]
-overflow-checks = true

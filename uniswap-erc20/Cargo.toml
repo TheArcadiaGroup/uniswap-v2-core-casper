@@ -33,7 +33,3 @@ no_nonces = []
 no_approve = []
 no_transfer = []
 no_transfer_from = []
-
-# enable overflow checks to make it behave like we used SafeMath in solidity
-[profile.release]
-overflow-checks = true

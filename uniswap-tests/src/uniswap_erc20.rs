@@ -1,8 +1,6 @@
 use casper_engine_test_support::{Code, Hash, SessionBuilder, TestContext, TestContextBuilder};
 use casper_types::{AsymmetricType, CLTyped, PublicKey, RuntimeArgs, U256, U512, account::AccountHash, bytesrepr::FromBytes, runtime_args};
-use libsecp256k1::{SecretKey};
-//use uniswap_libs::converters::set_size_32;
-//use renvm_sig::keccak256;
+use libsecp256k1::SecretKey;
 
 // contains methods that can simulate a real-world deployment (storing the contract in the blockchain)
 // and transactions to invoke the methods in the contract.
@@ -40,8 +38,6 @@ impl Token {
         let ali_seckey = SecretKey::parse(&[3u8; 32]).unwrap();
         let pubkey = libsecp256k1::PublicKey::from_secret_key(&ali_seckey);
         let ali = PublicKey::secp256k1_from_bytes(pubkey.serialize()).unwrap();
-        //let ali = PublicKey::ed25519_from_bytes(set_size_32(&pubkey.serialize()[..])).unwrap();
-        //let ali = PublicKey::ed25519_from_bytes([3u8; 32]).unwrap();
         let bob = PublicKey::ed25519_from_bytes([6u8; 32]).unwrap();
         let joe = PublicKey::ed25519_from_bytes([9u8; 32]).unwrap();
 

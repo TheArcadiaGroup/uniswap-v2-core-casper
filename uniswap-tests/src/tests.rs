@@ -147,7 +147,6 @@ fn test_uniswap_erc20_permit() {
     let nonce = t.nonces(t.ali);
     let deadline = U256::MAX;
     let digest = get_approval_digest(&t, t.ali, t.joe, value, nonce + U256::from(1), deadline);
-    //assert_eq!(digest, [0u8; 32]);
     let msg = Message(Scalar(u8_32_to_u32_8(digest)));
     let (signature, v) = sign(&msg, &(t.ali_sec));
     let sig: [u8; 64] = signature.serialize();

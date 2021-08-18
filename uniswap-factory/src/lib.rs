@@ -13,12 +13,7 @@ use core::convert::TryInto;
 use parity_hash::H256;
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
 use std::{convert::TryFrom, ops::Add};
-// contains evm opcodes like load, add..
-//use evm::Opcode;
 use renvm_sig::keccak256;
-// I couldn't find encodePacked which is utilized in Solidity
-// the difference is that encode makes calls to contracts and params are padded to 32 bytes
-// encodePacked is more space-efficient and doesn't call contracts
 
 use contract::{contract_api::{runtime::{self, call_contract, get_named_arg}, storage::{self, new_contract}}, unwrap_or_revert::UnwrapOrRevert};
 use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{self, Bytes, FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
@@ -27,7 +22,7 @@ use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, 
 pub enum Error {
     UniswapV2ZeroAddress = 0,
     UniswapV2PairExists = 1,
-    UniswapV2Forbidden = 2, // 65538
+    UniswapV2Forbidden = 2,
     UniswapV2IdenticalAddresses = 3,
 }
 
@@ -98,7 +93,7 @@ extern "C" fn createPair() {
     if (pair_key(&token0, &token1).to_string() != H256::zero().to_string()) {
         runtime::revert(Error::UniswapV2PairExists);
     }
-    // get tokens names and symbols
+    // get tokens' names and symbols
     let token0_name: String = call_contract(token0, "name", RuntimeArgs::new());
     let token1_name: String = call_contract(token1, "name", RuntimeArgs::new());
     let token0_symbol: String = call_contract(token0, "symbol", RuntimeArgs::new());
@@ -111,16 +106,7 @@ extern "C" fn createPair() {
     let pair_total_supply: U256 = U256::from(0);
     let permit_typehash: Bytes32 = Bytes32(keccak256(b"Permit(AccountHash owner,AccountHash spender,U256 value,U256 nonce,U256 deadline)"));
     // ***** END: uniswap-erc20 keys *****
-    // generate salt
-    let mut tok0_address = [0u8; 20];
-    tok0_address.copy_from_slice(&token0.as_bytes());
-    let mut tok1_address = [0u8; 20];
-    tok1_address.copy_from_slice(&token1.as_bytes());
-    // let salt: Bytes32 = Bytes32(keccak256(&mut encode(&[Token::Array(vec![
-    //     Token::Address(tok0_address.into()),
-    //     Token::Address(tok1_address.into()),
-    // ])])));
-    // Pair contract creation
+    // ***** Pair contract creation *****
     // 1 - set up named keys
     let mut named_keys = NamedKeys::new();
     // Unlike solidity, there's no inheritance in rust, so I'll be adding the named keys
@@ -217,7 +203,7 @@ extern "C" fn createPair() {
     entry_points.add_entry_point(endpoint("price0CumulativeLast", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint("price1CumulativeLast", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint("kLast", vec![], CLType::U256));
-    // "unlocked" is private variable, so no getter
+    // "unlocked" is a private variable, so no getter
     //entry_points.add_entry_point(endpoint("unlocked", vec![], CLType::U256));
     entry_points.add_entry_point(endpoint(
         "getReserves",

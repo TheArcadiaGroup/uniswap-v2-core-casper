@@ -11,7 +11,6 @@ pub fn get_domain_separator(hash: ContractHash) -> [u8; 32] {
             hash.value().to_vec()
         ].concat()[..];
         keccak256(param)
-        //assert_eq!(hash, [150, 237, 213, 190, 234, 171, 113, 245, 77, 1, 58, 26, 239, 79, 74, 196, 184, 236, 187, 23, 187, 64, 50, 45, 169, 230, 122, 37, 192, 165, 27, 62]);
 }
 
 pub fn get_approval_digest(
