@@ -38,7 +38,7 @@ $ cargo test -p uniswap-libs
 ```
 
 ## License
-As this is a implementation of the Uniswap contracts, best guidance indicates mechanical translations inherit copyright elements of the reference code, which in this case is Uniswap V2. Portions of this code are unique and are to be released under the same license. As such, this is licensed as GPLv3
+As this is a (unofficial) implementation of the Uniswap contracts, best guidance indicates mechanical translations inherit copyright elements of the reference code, which in this case is Uniswap V2. Portions of this code are unique and are to be released under the same license. As such, this is licensed as GPLv3
 https://www.gnu.org/licenses/gpl-3.0.en.html
 
 ## Security
