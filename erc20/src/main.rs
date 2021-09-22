@@ -18,8 +18,18 @@ use types::{
     account::AccountHash,
     bytesrepr::{FromBytes, ToBytes},
     contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys},
-    runtime_args, CLType, CLTyped, CLValue, Group, Parameter, RuntimeArgs, URef, U256,
+    runtime_args, CLType, CLTyped, CLValue, Group, Parameter, RuntimeArgs, URef, U256, ApiError
 };
+
+pub enum Error {
+    ZeroAddress = 0,
+}
+
+impl From<Error> for ApiError {
+    fn from(error: Error) -> ApiError {
+        ApiError::User(error as u16)
+    }
+}
 
 #[no_mangle]
 pub extern "C" fn name() {
@@ -156,6 +166,7 @@ pub extern "C" fn call() {
 }
 
 fn _transfer(sender: AccountHash, recipient: AccountHash, amount: U256) {
+    _check_accounts_not_null(sender, recipient);
     let sender_key = balance_key(&sender);
     let recipient_key = balance_key(&recipient);
     let new_sender_balance: U256 = get_key::<U256>(&sender_key)
@@ -169,6 +180,7 @@ fn _transfer(sender: AccountHash, recipient: AccountHash, amount: U256) {
 }
 
 fn _transfer_from(owner: AccountHash, recipient: AccountHash, amount: U256) {
+    _check_accounts_not_null(owner, recipient);
     let key = allowance_key(&owner, &runtime::get_caller());
     _transfer(owner, recipient, amount);
     _approve(
@@ -181,7 +193,14 @@ fn _transfer_from(owner: AccountHash, recipient: AccountHash, amount: U256) {
 }
 
 fn _approve(owner: AccountHash, spender: AccountHash, amount: U256) {
+    _check_accounts_not_null(owner, spender);
     set_key(&allowance_key(&owner, &spender), amount);
+}
+
+fn _check_accounts_not_null(x: AccountHash, y:AccountHash) {
+    if x == AccountHash::default() || y == AccountHash::default() {
+        runtime::revert(Error::ZeroAddress);
+    }
 }
 
 fn ret<T: CLTyped + ToBytes>(value: T) {

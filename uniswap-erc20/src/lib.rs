@@ -304,6 +304,7 @@ fn _set_domain_separator(hash: ContractHash) {
 }
 
 fn _transfer(sender: AccountHash, recipient: AccountHash, amount: U256) {
+    _check_accounts_not_null(sender, recipient);
     let sender_key = balance_key(&sender);
     let recipient_key = balance_key(&recipient);
     let new_sender_balance: U256 = get_key::<U256>(&sender_key)
@@ -317,6 +318,7 @@ fn _transfer(sender: AccountHash, recipient: AccountHash, amount: U256) {
 }
 
 fn _transfer_from(owner: AccountHash, recipient: AccountHash, amount: U256) {
+    _check_accounts_not_null(owner, recipient);
     let key = allowance_key(&owner, &runtime::get_caller());
     _transfer(owner, recipient, amount);
     _approve(
@@ -353,7 +355,14 @@ fn _burn(from: AccountHash, value: U256) {
 }
 
 fn _approve(owner: AccountHash, spender: AccountHash, amount: U256) {
+    _check_accounts_not_null(owner, spender);
     set_key(&allowance_key(&owner, &spender), amount);
+}
+
+fn _check_accounts_not_null(x: AccountHash, y:AccountHash) {
+    if x == AccountHash::default() || y == AccountHash::default() {
+        runtime::revert(Error::UniswapV2ZeroAddress);
+    }
 }
 
 fn ret<T: CLTyped + ToBytes>(value: T) {

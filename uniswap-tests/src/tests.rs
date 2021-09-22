@@ -1,3 +1,4 @@
+use casper_engine_test_support::AccountHash;
 use casper_types::U256;
 use libsecp256k1::{Message, sign};
 use libsecp256k1::curve::Scalar;
@@ -33,7 +34,7 @@ fn test_erc20_transfer() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic = "None"]
 fn test_erc20_transfer_too_much() {
     let amount = 1.into();
     let mut t = Token::deployed();
@@ -52,6 +53,14 @@ fn test_erc20_approve() {
 }
 
 #[test]
+#[should_panic = "User(0)"]
+fn test_erc20_approve_to_zero_address() {
+    let amount = 10.into();
+    let mut t = Token::deployed();
+    t.approve(AccountHash::default(), amount, Sender(t.ali));
+}
+
+#[test]
 fn test_erc20_transfer_from() {
     let allowance = 10.into();
     let amount = 3.into();
@@ -65,10 +74,37 @@ fn test_erc20_transfer_from() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic = "None"]
 fn test_erc20_transfer_from_too_much() {
     let amount = token_cfg::total_supply().checked_add(1.into()).unwrap();
     let mut t = Token::deployed();
+    t.approve(t.bob, amount, Sender(t.ali));
+    t.transfer_from(t.ali, t.joe, amount, Sender(t.bob));
+}
+
+#[test]
+#[should_panic = "User(0)"]
+fn test_erc20_transfer_zero_address() {
+    let amount = 1.into();
+    let mut t = Token::deployed();
+    t.transfer(AccountHash::default(), amount, Sender(t.bob));
+}
+
+#[test]
+#[should_panic = "None"]
+fn test_erc20_transfer_from_without_approval() {
+    let amount = U256::from(1);
+    let mut t = Token::deployed();
+    t.transfer_from(t.ali, t.joe, amount, Sender(t.bob));
+}
+
+#[test]
+#[should_panic = "None"]
+fn test_erc20_transfer_from_with_low_allowance() {
+    let allowance = 1.into();
+    let amount = 3.into();
+    let mut t = Token::deployed();
+    t.approve(t.bob, allowance, Sender(t.ali));
     t.transfer_from(t.ali, t.joe, amount, Sender(t.bob));
 }
 
@@ -101,11 +137,19 @@ fn test_uniswap_erc20_transfer() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic = "None"]
 fn test_uniswap_erc20_transfer_too_much() {
     let amount = 1.into();
     let mut t = UNI_Token::deployed();
     t.transfer(t.ali, amount, UNI_Sender(t.bob));
+}
+
+#[test]
+#[should_panic = "User(0)"]
+fn test_uniswap_erc20_transfer_zero_address() {
+    let amount = 1.into();
+    let mut t = UNI_Token::deployed();
+    t.transfer(AccountHash::default(), amount, UNI_Sender(t.bob));
 }
 
 #[test]
@@ -117,6 +161,14 @@ fn test_uniswap_erc20_approve() {
     assert_eq!(t.balance_of(t.bob), 0.into());
     assert_eq!(t.allowance(t.ali, t.bob), amount);
     assert_eq!(t.allowance(t.bob, t.ali), 0.into());
+}
+
+#[test]
+#[should_panic = "User(0)"]
+fn test_uniswap_erc20_approve_to_zero_address() {
+    let amount = 10.into();
+    let mut t = UNI_Token::deployed();
+    t.approve(AccountHash::default(), amount, UNI_Sender(t.ali));
 }
 
 #[test]
@@ -133,10 +185,29 @@ fn test_uniswap_erc20_transfer_from() {
 }
 
 #[test]
-#[should_panic]
+#[should_panic = "None"]
 fn test_uniswap_erc20_transfer_from_too_much() {
     let amount = UNI_token_cfg::total_supply().checked_add(1.into()).unwrap();
     let mut t = UNI_Token::deployed();
+    t.approve(t.bob, amount, UNI_Sender(t.ali));
+    t.transfer_from(t.ali, t.joe, amount, UNI_Sender(t.bob));
+}
+
+#[test]
+#[should_panic = "None"]
+fn test_uniswap_erc20_transfer_from_without_approval() {
+    let amount = U256::from(1);
+    let mut t = UNI_Token::deployed();
+    t.transfer_from(t.ali, t.joe, amount, UNI_Sender(t.bob));
+}
+
+#[test]
+#[should_panic = "None"]
+fn test_uniswap_erc20_transfer_from_with_low_allowance() {
+    let allowance = 1.into();
+    let amount = 3.into();
+    let mut t = UNI_Token::deployed();
+    t.approve(t.bob, allowance, UNI_Sender(t.ali));
     t.transfer_from(t.ali, t.joe, amount, UNI_Sender(t.bob));
 }
 
@@ -165,4 +236,30 @@ fn test_uniswap_erc20_permit() {
     );
     assert_eq!(t.allowance(t.ali, t.joe), value);
     assert_eq!(t.nonces(t.ali), nonce + U256::from(1));
+}
+
+#[test]
+#[should_panic = "User(14)"]
+fn test_uniswap_erc20_permit_wrong_signature() {
+    let mut t = UNI_Token::deployed();
+    let value = U256::from(10*18);
+    let nonce = t.nonces(t.ali);
+    let deadline = U256::MAX;
+    let digest = get_approval_digest(&t, t.ali, t.joe, value, nonce + U256::from(1), deadline);
+    let msg = Message(Scalar(u8_32_to_u32_8(digest)));
+    let (signature, v) = sign(&msg, &(t.ali_sec));
+    let sig: [u8; 64] = signature.serialize();
+    let (r, s) = sig.split_at(32);
+    let output = ecrecover_sol(&digest, v.serialize(), set_size_32(r), set_size_32(s));
+    assert_eq!(t.ali, output);
+    t.permit(
+        t.bob, 
+        t.joe, 
+        value, 
+        deadline, 
+        v.serialize(), 
+        set_size_32(r), 
+        set_size_32(s), 
+        UNI_Sender(t.ali)
+    );
 }
