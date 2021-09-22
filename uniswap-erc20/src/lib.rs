@@ -9,7 +9,6 @@ use alloc::{
     string::String,
 };
 use core::convert::TryInto;
-use std::ops::{Add, Sub};
 use solid::{Address, bytesfix::{Bytes32, Bytes4}, int::Uint112};
 use renvm_sig::keccak256;
 use contract::{
@@ -18,7 +17,6 @@ use contract::{
 };
 use types::{ApiError, CLType, CLTyped, CLValue, ContractHash, Group, Parameter, RuntimeArgs, U256, URef, account::AccountHash, bytesrepr::{FromBytes, ToBytes}, contracts::{EntryPoint, EntryPointAccess, EntryPointType, EntryPoints, NamedKeys}, runtime_args};
 use elliptic_curve;
-//use ethabi::{encode, Token};
 use uniswap_libs::ecrecover;
 
 pub enum Error {
@@ -150,7 +148,9 @@ pub extern "C" fn permit() {
     if (deadline < U256::from(&runtime::get_blocktime().to_bytes().unwrap()[..])) {
         runtime::revert(Error::UniswapV2Expired);
     }
-    let new_nonce: U256 = get_key::<U256>(&nonce_key(&owner)) + U256::from(1);
+    let new_nonce: U256 = get_key::<U256>(&nonce_key(&owner))
+    .checked_add(U256::from(1))
+    .unwrap_or_revert();
     set_key(&nonce_key(&owner), new_nonce);
     let mut value_bytes = [0u8; 32];
     value.to_big_endian(&mut value_bytes);
@@ -306,9 +306,13 @@ fn _set_domain_separator(hash: ContractHash) {
 fn _transfer(sender: AccountHash, recipient: AccountHash, amount: U256) {
     let sender_key = balance_key(&sender);
     let recipient_key = balance_key(&recipient);
-    let new_sender_balance: U256 = (get_key::<U256>(&sender_key) - amount);
+    let new_sender_balance: U256 = get_key::<U256>(&sender_key)
+    .checked_sub(amount)
+    .unwrap_or_revert();
     set_key(&sender_key, new_sender_balance);
-    let new_recipient_balance: U256 = (get_key::<U256>(&recipient_key) + amount);
+    let new_recipient_balance: U256 = get_key::<U256>(&recipient_key)
+    .checked_add(amount)
+    .unwrap_or_revert();
     set_key(&recipient_key, new_recipient_balance);
 }
 
@@ -318,23 +322,33 @@ fn _transfer_from(owner: AccountHash, recipient: AccountHash, amount: U256) {
     _approve(
         owner,
         runtime::get_caller(),
-        (get_key::<U256>(&key) - amount),
+        get_key::<U256>(&key)
+        .checked_sub(amount)
+        .unwrap_or_revert(),
     );
 }
 
 fn _mint(to: AccountHash, value: U256) {
-    let total_supply: U256 = get_key::<U256>("total_supply").add(value);
+    let total_supply: U256 = get_key::<U256>("total_supply")
+    .checked_add(value)
+    .unwrap_or_revert();
     set_key("total_supply", total_supply);
     let to_key = balance_key(&to);
-    let new_to_balance: U256 = (get_key::<U256>(&to_key) + value);
+    let new_to_balance: U256 = get_key::<U256>(&to_key)
+    .checked_add(value)
+    .unwrap_or_revert();
     set_key(&to_key, new_to_balance);
 }
 
 fn _burn(from: AccountHash, value: U256) {
     let from_key = balance_key(&from);
-    let new_from_balance: U256 = (get_key::<U256>(&from_key) - value);
+    let new_from_balance: U256 = get_key::<U256>(&from_key)
+    .checked_sub(value)
+    .unwrap_or_revert();
     set_key(&from_key, new_from_balance);
-    let total_supply: U256 = get_key::<U256>("total_supply").sub(value);
+    let total_supply: U256 = get_key::<U256>("total_supply")
+    .checked_sub(value)
+    .unwrap_or_revert();
     set_key("total_supply", total_supply);
 }
 

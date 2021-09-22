@@ -158,9 +158,13 @@ pub extern "C" fn call() {
 fn _transfer(sender: AccountHash, recipient: AccountHash, amount: U256) {
     let sender_key = balance_key(&sender);
     let recipient_key = balance_key(&recipient);
-    let new_sender_balance: U256 = (get_key::<U256>(&sender_key) - amount);
+    let new_sender_balance: U256 = get_key::<U256>(&sender_key)
+    .checked_sub(amount)
+    .unwrap_or_revert();
     set_key(&sender_key, new_sender_balance);
-    let new_recipient_balance: U256 = (get_key::<U256>(&recipient_key) + amount);
+    let new_recipient_balance: U256 = get_key::<U256>(&recipient_key)
+    .checked_add(amount)
+    .unwrap_or_revert();
     set_key(&recipient_key, new_recipient_balance);
 }
 
@@ -170,7 +174,9 @@ fn _transfer_from(owner: AccountHash, recipient: AccountHash, amount: U256) {
     _approve(
         owner,
         runtime::get_caller(),
-        (get_key::<U256>(&key) - amount),
+        get_key::<U256>(&key)
+        .checked_sub(amount)
+        .unwrap_or_revert(),
     );
 }
 
